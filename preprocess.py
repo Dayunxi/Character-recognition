@@ -26,9 +26,12 @@ def pre_process(image):
 def binary_image(image):
     # 原图黑字白底
     threshold, ret = cv.threshold(image, 0, 255, cv.THRESH_OTSU)
+    # plt.imshow(ret)
+    # plt.show()
     return ret
 
 
+# 获取图片有效区间
 def get_valid_range(image, mode='vertical'):
     min_range = 2
     rows, cols = image.shape
@@ -73,7 +76,7 @@ def get_valid_range(image, mode='vertical'):
 
 
 def main():
-    image = read_image("image/test2.jpg")
+    image = read_image("image/test4.jpg")
     image = pre_process(image)
     image = binary_image(image)
     valid_vertical_images = get_valid_range(image, 'vertical')
@@ -83,6 +86,8 @@ def main():
         valid_images.extend(img)
     print(valid_images)
     for image in valid_images:
+        height, width = image.shape
+        print(image.shape, width/height)
         cv.imshow('g', image)
         cv.waitKey()
 

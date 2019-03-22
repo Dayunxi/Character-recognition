@@ -19,12 +19,14 @@ def main():
     cdf_list = []
     for i in range(-30, 31, 2):
         integer = calc_norm(0, 10, i-1, i+1)
-        print(integer*total_num_per_font_style, i-1, i+1)
+        # print(integer*total_num_per_font_style, i-1, i+1)
         cdf_list.append(integer*total_num_per_font_style)
     # print(cdf_list)
-    print(np.ceil(cdf_list))
-    print(np.sum(np.ceil(cdf_list)))
-    print(len(cdf_list))
+    # print(np.ceil(cdf_list))
+    # print(np.sum(np.ceil(cdf_list)))
+    # print(len(cdf_list))
+    cdf_list = [int(num) for num in np.ceil(cdf_list)]
+    print(cdf_list)
     pass
 
 

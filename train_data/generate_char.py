@@ -2,6 +2,7 @@ from PIL import Image, ImageFont, ImageDraw
 import cv2 as cv
 import numpy as np
 import os
+import time
 
 
 class ImageEnhance(object):
@@ -78,7 +79,8 @@ def font2image(font_style, gb_list):
     # copy from get_integrate.py
     amount = [1, 1, 1, 1, 1, 1, 1, 1, 1, 2, 2, 2, 2, 3, 3, 3, 3, 3, 2, 2, 2, 2, 1, 1, 1, 1, 1, 1, 1, 1, 1]
     for char, code in gb_list:
-        print(char)
+        if code % 100 == 0:
+            print('[+]Font2image: ' + str(code/len(gb_list)*100) + '% ...')
         image.paste(0, (0, 0, canvas_width, canvas_height))  # erase
         draw.text((5, 5), char, font=font, fill=255)
         for i, angle in enumerate(range(-max_angle, max_angle+1, angle_step)):
@@ -102,6 +104,8 @@ def save_single_image(optical_char_list, char_info_list, font_style):
 
         file_dict = 'character/{}/'.format(char)
         file_name = '{}_{}_{}.jpg'.format(char, font_style, order[char])
+        if os.path.exists(file_dict + file_name):
+            continue
         if not os.path.exists(file_dict):
             os.mkdir(file_dict)
         # cv.imwrite(file_dict + file_name, image)  # 不支持中文
@@ -116,13 +120,16 @@ def save_combined_image(optical_char_list, char_info_list, font_style):
         if char not in word_dict:
             word_dict[char] = []
         word_dict[char].append(image)
-    for key in word_dict:
+    for order, key in enumerate(word_dict):
+        if order % 100 == 0:
+            print('[+]Save: ' + str(order/len(word_dict)*100) + '% ...')
+        file_dict = 'character/{}/'.format(key)
+        file_name = '{}_{}.jpg'.format(key, font_style)
+        if os.path.exists(file_dict + file_name):
+            continue
         big_canvas = np.zeros((32, 32 * 49), dtype=np.uint8)
         for i, image in enumerate(word_dict[key]):
             big_canvas[:, 32*i:32*(i+1)] = image
-
-        file_dict = 'character/{}/'.format(key)
-        file_name = '{}_{}.jpg'.format(key, font_style)
         if not os.path.exists(file_dict):
             os.mkdir(file_dict)
         cv.imencode('.jpg', big_canvas)[1].tofile(file_dict + file_name)
@@ -142,4 +149,6 @@ def main():
 
 
 if __name__ == '__main__':
+    start = time.time()
     main()
+    print('Total Time:', (time.time() - start) / 60)

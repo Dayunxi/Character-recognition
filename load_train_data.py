@@ -35,7 +35,26 @@ def horizon_crop(combined_image, num):
     return image_list
 
 
+def get_primer_gb():
+    start = 0xB0A1
+    end = 0xD7FA
+    gb_list = []
+    gb_id = 1
+    for i in range(start, end):
+        if (i & 0xF0) >> 4 < 0xA or i & 0xF == 0x0 or i & 0xF == 0xF:
+            continue
+        character = str(i.to_bytes(length=2, byteorder='big'), 'gb2312')
+        gb_list.append((character, gb_id))
+        gb_id += 1
+    return gb_list
+
+
 def get_batch(size):
+    gb_list = get_primer_gb()
+    label_map = {}
+    for char, gb_id in gb_list:
+        label_map[char] = gb_id
+
     curr_group_remain = 0
     curr_images = []
     curr_labels = []
@@ -47,7 +66,7 @@ def get_batch(size):
 
     while loaded_num < total_num:
         if curr_group_remain == 0:
-            curr_images, curr_labels = load_image_group(curr_order+1)
+            curr_images, curr_labels = load_image_group(curr_order+1, label_map=label_map)
             curr_pointer = 0
             curr_group_remain = len(curr_labels)
             curr_order += 1
@@ -56,7 +75,7 @@ def get_batch(size):
             ret_image_list = curr_images[curr_pointer:]
             ret_label_list = curr_labels[curr_pointer:]
             if loaded_num + size < total_num:
-                curr_images, curr_labels = load_image_group(curr_order+1)
+                curr_images, curr_labels = load_image_group(curr_order+1, label_map=label_map)
                 curr_pointer = 0
                 curr_group_remain = len(curr_labels)
                 curr_order += 1
@@ -79,7 +98,7 @@ def get_batch(size):
         yield ret_image_list, ret_label_list
 
 
-def load_image_group(order, group_size=(256, 256)):
+def load_image_group(order, group_size=(256, 256), label_map=None):
     print('Loading group {} ...'.format(order))
     _, total_col = group_size
     width = 32
@@ -99,6 +118,8 @@ def load_image_group(order, group_size=(256, 256)):
         images.append(np.array(image))
     print(len(labels), len(images))
     print('Load Done')
+    if label_map is not None:
+        labels = [label_map[label] for label in labels]
     return images, labels
 
 

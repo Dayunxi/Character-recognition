@@ -12,7 +12,8 @@ class ImageEnhance(object):
 
     @classmethod
     def add_noise(cls, img):
-        for i in range(20):     # 添加点噪声
+        noise_num = np.random.randint(1, 25)
+        for i in range(noise_num):     # 添加点噪声
             temp_x = np.random.randint(0, img.shape[0])
             temp_y = np.random.randint(0, img.shape[1])
             img[temp_x][temp_y] = 255
@@ -33,14 +34,14 @@ class ImageEnhance(object):
     def enhance(self, img_list):
         for i in range(len(img_list)):
             im = img_list[i]
-            if self.dilate and np.random.random() < 0.5:
+            if np.random.random() < 0.4:
+                pass
+            elif self.dilate and np.random.random() < 0.5:
                 img_list[i] = self.add_dilate(im)
             elif self.erode:
                 img_list[i] = self.add_erode(im)
-            if self.noise and np.random.random() < 0.5:
+            if self.noise and np.random.random() < 0.8:
                 img_list[i] = self.add_noise(im)
-            # cv.imshow('ll,', img_list[i])
-            # cv.waitKey()
 
 
 def get_primer_gb():
@@ -90,30 +91,41 @@ def font2image(font_style, gb_list):
             for _ in range(amount[i]):
                 optical_char_list.append(np.array(optical_char))
                 char_info_list.append(char)
-            # cv.imshow(char, np.array(optical_char))
-            # cv.waitKey()
     return optical_char_list, char_info_list
 
 
-def save_to_local(optical_char_list, char_info_list, font_style):
+def save_single_image(optical_char_list, char_info_list, font_style):
     order = {}
     for image, char in zip(optical_char_list, char_info_list):
         if char not in order:
             order[char] = 1
+
         file_dict = 'character/{}/'.format(char)
         file_name = '{}_{}_{}.jpg'.format(char, font_style, order[char])
-        # print(char)
         if not os.path.exists(file_dict):
             os.mkdir(file_dict)
-        # image.save(file_dict + file_name)
         # cv.imwrite(file_dict + file_name, image)  # 不支持中文
         cv.imencode('.jpg', image)[1].tofile(file_dict+file_name)
         order[char] += 1
     pass
 
 
-def image_combine(optical_char_list):
-    pass
+def save_combined_image(optical_char_list, char_info_list, font_style):
+    word_dict = {}
+    for image, char in zip(optical_char_list, char_info_list):
+        if char not in word_dict:
+            word_dict[char] = []
+        word_dict[char].append(image)
+    for key in word_dict:
+        big_canvas = np.zeros((32, 32 * 49), dtype=np.uint8)
+        for i, image in enumerate(word_dict[key]):
+            big_canvas[:, 32*i:32*(i+1)] = image
+
+        file_dict = 'character/{}/'.format(key)
+        file_name = '{}_{}.jpg'.format(key, font_style)
+        if not os.path.exists(file_dict):
+            os.mkdir(file_dict)
+        cv.imencode('.jpg', big_canvas)[1].tofile(file_dict + file_name)
 
 
 def main():
@@ -121,11 +133,12 @@ def main():
     print(gb_list)
     print(len(gb_list))
     font_style_list = ['simhei.ttf', 'simkai.ttf', 'simsun.ttc', 'msyh.ttc', 'STXINWEI.TTF', 'SIMLI.TTF', 'FZSTK.TTF']
-    for style in font_style_list[:]:
+    for style in font_style_list:
         print(style)
-        optical_char_list, char_info_list = font2image(style, gb_list[:10])
+        optical_char_list, char_info_list = font2image(style, gb_list)
         ImageEnhance().enhance(optical_char_list)
-        save_to_local(optical_char_list, char_info_list, style.split('.')[0])
+        save_combined_image(optical_char_list, char_info_list, style.split('.')[0])
+        # save_single_image(optical_char_list, char_info_list, style.split('.')[0])
 
 
 if __name__ == '__main__':

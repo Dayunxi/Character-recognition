@@ -59,6 +59,22 @@ def get_primer_gb():
     return gb_list
 
 
+def char_resize(char_image, data_width, data_height):
+    canvas = Image.new('L', (data_width, data_height), 0)
+    width, height = char_image.size
+    height = int(32 / width * height)
+    optical_char = char_image.resize((data_width, height), Image.BILINEAR)
+    if height > 32:
+        width = int(32 / height * width)
+        optical_char = char_image.resize((width, data_height), Image.BILINEAR)
+
+    width, height = optical_char.size
+    canvas.paste(optical_char, (int((data_width - width) / 2), int((data_height - height) / 2)))
+    # cv.imshow('resize', np.array(canvas))
+    # cv.waitKey()
+    return canvas
+
+
 def font2image(font_style, gb_list):
     font_size = 32
     width = 32
@@ -87,9 +103,8 @@ def font2image(font_style, gb_list):
             optical_char = image.rotate(angle, Image.BILINEAR)   # linear interpolation
             box = optical_char.getbbox()
             optical_char = optical_char.crop(box)
-            optical_char = optical_char.resize((width, height), Image.ANTIALIAS)
-            # optical_char_list.append((optical_char, char))
-            # print(i, amount[i], angle)
+            optical_char = char_resize(optical_char, width, height)
+            # optical_char = optical_char.resize((width, height), Image.ANTIALIAS)  # 对‘一’resize 效果不理想
             for _ in range(amount[i]):
                 optical_char_list.append(np.array(optical_char))
                 char_info_list.append(char)
@@ -126,6 +141,7 @@ def save_combined_image(optical_char_list, char_info_list, font_style):
         file_dict = 'character/{}/'.format(key)
         file_name = '{}_{}.jpg'.format(key, font_style)
         if os.path.exists(file_dict + file_name):
+            # print('覆盖:', file_name)
             continue
         big_canvas = np.zeros((32, 32 * 49), dtype=np.uint8)
         for i, image in enumerate(word_dict[key]):
@@ -133,6 +149,8 @@ def save_combined_image(optical_char_list, char_info_list, font_style):
         if not os.path.exists(file_dict):
             os.mkdir(file_dict)
         cv.imencode('.jpg', big_canvas)[1].tofile(file_dict + file_name)
+        # cv.imshow('test', big_canvas)
+        # cv.waitKey()
 
 
 def main():
@@ -142,7 +160,7 @@ def main():
     font_style_list = ['simhei.ttf', 'simkai.ttf', 'simsun.ttc', 'msyh.ttc', 'STXINWEI.TTF', 'SIMLI.TTF', 'FZSTK.TTF']
     for style in font_style_list:
         print(style)
-        optical_char_list, char_info_list = font2image(style, gb_list)
+        optical_char_list, char_info_list = font2image(style, [('一', 1), ('二', 2), ('三', 3)])
         ImageEnhance().enhance(optical_char_list)
         save_combined_image(optical_char_list, char_info_list, style.split('.')[0])
         # save_single_image(optical_char_list, char_info_list, style.split('.')[0])

@@ -16,17 +16,18 @@ def normalize(z, miu, sigma):
 
 def main():
     total_num_per_font_style = 30
+    max_angle = 30
+    angle_step = 2
     cdf_list = []
-    for i in range(-30, 31, 2):
+    for i in range(-max_angle, max_angle+1, angle_step):
         integer = calc_norm(0, 10, i-1, i+1)
         # print(integer*total_num_per_font_style, i-1, i+1)
         cdf_list.append(integer*total_num_per_font_style)
     # print(cdf_list)
-    # print(np.ceil(cdf_list))
-    # print(np.sum(np.ceil(cdf_list)))
-    # print(len(cdf_list))
+    print(np.sum(np.ceil(cdf_list)))
     cdf_list = [int(num) for num in np.ceil(cdf_list)]
     print(cdf_list)
+    print(len(cdf_list))
     pass
 
 

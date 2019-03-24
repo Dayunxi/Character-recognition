@@ -177,6 +177,7 @@ def main():
         print(style, '{}/{}'.format(i, len(font_style_list)))
         optical_char_list, char_info_list = font2image(style, gb_list[:2], char_size=(64, 64))
         optical_char_list.extend(ImageEnhance().enhance(optical_char_list))
+        char_info_list *= 2
         # for image in optical_char_list:
         #     cv.imshow('test', image)
         #     cv.waitKey()

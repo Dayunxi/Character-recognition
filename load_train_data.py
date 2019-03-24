@@ -39,7 +39,7 @@ def get_primer_gb():
     start = 0xB0A1
     end = 0xD7FA
     gb_list = []
-    gb_id = 1
+    gb_id = 0
     for i in range(start, end):
         if (i & 0xF0) >> 4 < 0xA or i & 0xF == 0x0 or i & 0xF == 0xF:
             continue
@@ -49,36 +49,36 @@ def get_primer_gb():
     return gb_list
 
 
-def get_batch(size):
+def get_batch(size, char_size=(64, 64), group_size=(256, 256), total_num=3355*13*72*2, one_hot_length=None):
     gb_list = get_primer_gb()
     label_map = {}
     for char, gb_id in gb_list:
         label_map[char] = gb_id
+    print(label_map)
 
     curr_group_remain = 0
     curr_images = []
     curr_labels = []
     curr_pointer = 0
-    curr_order = 0
+    next_order = 1
 
     loaded_num = 0
-    total_num = 3355 * 7 * 49
 
     while loaded_num < total_num:
         if curr_group_remain == 0:
-            curr_images, curr_labels = load_image_group(curr_order+1, label_map=label_map)
+            curr_images, curr_labels = load_image_group(next_order, char_size=char_size, group_size=group_size)
             curr_pointer = 0
             curr_group_remain = len(curr_labels)
-            curr_order += 1
+            next_order += 1
 
         if size > curr_group_remain:
             ret_image_list = curr_images[curr_pointer:]
             ret_label_list = curr_labels[curr_pointer:]
             if loaded_num + size < total_num:
-                curr_images, curr_labels = load_image_group(curr_order+1, label_map=label_map)
+                curr_images, curr_labels = load_image_group(next_order, char_size=char_size, group_size=group_size)
                 curr_pointer = 0
                 curr_group_remain = len(curr_labels)
-                curr_order += 1
+                next_order += 1
 
                 diff = size - len(ret_image_list)
                 ret_image_list.extend(curr_images[:diff])
@@ -87,6 +87,8 @@ def get_batch(size):
                 curr_pointer += diff
                 curr_group_remain -= diff
                 loaded_num += size
+            else:
+                loaded_num = total_num
         else:
             ret_image_list = curr_images[curr_pointer: curr_pointer + size]
             ret_label_list = curr_labels[curr_pointer: curr_pointer + size]
@@ -95,15 +97,21 @@ def get_batch(size):
             curr_group_remain -= size
             loaded_num += size
 
-        yield ret_image_list, ret_label_list
+        ret_label_list = [label_map[label] for label in ret_label_list]
+
+        if one_hot_length is not None:
+            yield np.array(ret_image_list, dtype=np.float32)/255, get_one_hot(ret_label_list, one_hot_length)
+        else:
+            yield np.array(ret_image_list, dtype=np.float32)/255, np.array(ret_label_list)
 
 
-def load_image_group(order, group_size=(256, 256), label_map=None):
+def load_image_group(order, group_size=(256, 256), char_size=(64, 64)):
     print('Loading group {} ...'.format(order))
     _, total_col = group_size
-    width = 32
-    height = 32
+    width, height = char_size
     directory = 'train_data/train_data_batch/'
+    directory = 'train_data/train_data_new/'
+    directory = 'train_data/train_data_test/'
     grouped_image = Image.open(directory + 'train_image_{}.jpg'.format(order))
     images = []
     labels = []
@@ -118,22 +126,38 @@ def load_image_group(order, group_size=(256, 256), label_map=None):
         images.append(np.array(image))
     print(len(labels), len(images))
     print('Load Done')
-    if label_map is not None:
-        labels = [label_map[label] for label in labels]
     return images, labels
 
 
+def get_one_hot(arr, dim):
+    matrix = np.zeros((len(arr), dim), dtype=int)
+    for i, col in enumerate(arr):
+        matrix[i][col] = 1
+    return matrix
+
+
 def main():
-    batch = get_batch(int(256*256*2/5))
-    for i in range(18):
-        print(i)
-        x, y = next(batch)
-        print('batch size:', len(x), len(y))
-        show_list = [0, 1, 2, -3, -2, -1]
-        for j in show_list:
-            print(y[j], j)
-            cv.imshow('image', x[j])
-            cv.waitKey()
+    gb_list = get_primer_gb()
+    label_id = {}
+    id_label = {}
+    for char, gb_id in gb_list:
+        label_id[char] = gb_id
+        id_label[gb_id] = char
+
+    batch_size = 50
+    batch_gen = get_batch(batch_size, total_num=3355*13*72*2, group_size=(256, 256))
+    try:
+        while True:
+            batch = next(batch_gen)
+            images, labels = batch
+            print('batch size:', len(images), len(labels))
+            for i in range(len(images)):
+                pos = np.argmax(labels[i])
+                print(pos, id_label[pos], i)
+                cv.imshow('image', images[i])
+                cv.waitKey()
+    except StopIteration:
+        pass
 
 
 if __name__ == '__main__':

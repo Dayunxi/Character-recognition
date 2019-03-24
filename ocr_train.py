@@ -6,15 +6,20 @@ import argparse
 import sys
 import tempfile
 
-# from tensorflow.examples.tutorials.mnist import input_data
-
 import tensorflow as tf
 
 import load_train_data
 
 import cv2 as cv
+import numpy as np
+
 
 FLAGS = None
+WIDTH = 64
+HEIGHT = 64
+CHAR_NUM = 3355
+TOTAL_NUM = 13*72*2*CHAR_NUM
+GROUP_SIZE = (256, 256)
 
 
 def deepnn(x):
@@ -48,12 +53,10 @@ def deepnn(x):
     # Last dimension is for "features" - there is only one here, since images are
     # grayscale -- it would be 3 for an RGB image, 4 for RGBA, etc.
     with tf.name_scope('reshape'):
-        x_image = tf.reshape(x, [-1, 64, 64, 1])
+        x_image = tf.reshape(x, [-1, HEIGHT, WIDTH, 1])
 
     # First convolutional layer - maps one grayscale image to 32 feature maps.
     with tf.name_scope('conv1'):
-        # W_conv1 = weight_variable([6, 6, 1, 64])
-        # b_conv1 = bias_variable([64])
         h_conv1 = tf.nn.relu(conv2d(x_image, weights['W_conv1']) + biases['b_conv1'])
 
     # Pooling layer - downsamples by 2X.
@@ -89,7 +92,7 @@ def deepnn(x):
         W_fc1 = weight_variable([4 * 4 * 512, 1024])
         b_fc1 = bias_variable([1024])
 
-        h_pool2_flat = tf.reshape(h_pool5, [-1, 4*4*512])
+        h_pool2_flat = tf.reshape(h_pool5, [-1, 4 * 4 * 512])
         h_fc1 = tf.nn.relu(tf.matmul(h_pool2_flat, W_fc1) + b_fc1)
 
     # Dropout - controls the complexity of the model, prevents co-adaptation of
@@ -100,8 +103,8 @@ def deepnn(x):
 
     # Map the 1024 features to 10 classes, one for each digit
     with tf.name_scope('fc2'):
-        W_fc2 = weight_variable([1024, 3355])
-        b_fc2 = bias_variable([3355])
+        W_fc2 = weight_variable([1024, CHAR_NUM])
+        b_fc2 = bias_variable([CHAR_NUM])
 
         y_conv = tf.matmul(h_fc1_drop, W_fc2) + b_fc2
     return y_conv, keep_prob
@@ -135,10 +138,10 @@ def main(_):
     # mnist = input_data.read_data_sets(FLAGS.data_dir, one_hot=True)
 
     # Create the model
-    x = tf.placeholder(tf.float32, [None, 64, 64])
+    x = tf.placeholder(tf.float32, [None, HEIGHT, WIDTH])
 
     # Define loss and optimizer
-    y_ = tf.placeholder(tf.float32, [None, 3355])
+    y_ = tf.placeholder(tf.float32, [None, CHAR_NUM])
 
     # Build the graph for the deep net
     y_conv, keep_prob = deepnn(x)
@@ -162,26 +165,35 @@ def main(_):
     train_writer.add_graph(tf.get_default_graph())
 
     batch_size = 50
-    batch_gen = load_train_data.get_batch(batch_size, total_num=3355*13*49, group_size=(128, 128))
+    batch_gen = load_train_data.get_batch(batch_size, total_num=TOTAL_NUM, group_size=GROUP_SIZE)
 
     with tf.Session() as sess:
+        saver = tf.train.Saver()
         sess.run(tf.global_variables_initializer())
         try:
             for i in range(100000):
                 batch = next(batch_gen)
                 images, labels = batch
-                for j in range(batch_size):
-                    for pos in range(3355):
-                        if labels[j][pos] == 1:
-                            print(pos, j)
-                            break
-                    # print(labels[j])
-                    cv.imshow('test', images[j])
-                    cv.waitKey()
+                # print(images[0])
+                # for image in images:
+                #     for row in image:
+                #         print(row)
+                #     cv.imshow('test', np.array(images[0]*255, dtype=np.uint8))
+                #     cv.waitKey()
+                # for j in range(batch_size):
+                #     for pos in range(3355):
+                #         if labels[j][pos] == 1:
+                #             print(pos, j)
+                #             break
+                #     # print(labels[j])
+                #     cv.imshow('test', images[j])
+                #     cv.waitKey()
                 if i % 10 == 0:
                     train_accuracy = accuracy.eval(feed_dict={x: images, y_: labels, keep_prob: 1.0})
                     print('step %d, training accuracy %g' % (i, train_accuracy))
                 train_step.run(feed_dict={x: images, y_: labels, keep_prob: 0.5})
+                if i == 1000:
+                    saver.save(sess, 'model/ocr-model', global_step=i)
         except StopIteration:
             pass
 

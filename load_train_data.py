@@ -1,38 +1,36 @@
-from PIL import Image, ImageFont, ImageDraw
-import os
 import cv2 as cv
 import numpy as np
 
 
-def load_all_data():
-    dir_list = os.listdir('train_data/character/')
-    train_data = []
-    for i, char in enumerate(dir_list):
-        if i % 20 == 0:
-            print('[+]Loading: ' + str(i/len(dir_list)*100) + '% ...')
-        folder = 'train_data/character/' + char + '/'
-        file_list = os.listdir(folder)
-        # print(file_list)
-        single_char_list = []
-        for filename in file_list:
-            path = folder + filename
-            image = Image.open(path)
-            single_char_list.extend(horizon_crop(image, 49))
-        train_data.extend([(np.array(img), char) for img in single_char_list])
-    print('Shuffling ...')
-    np.random.shuffle(train_data)
-    print('Done')
-    return train_data
-
-
-def horizon_crop(combined_image, num):
-    image_list = []
-    width, height = combined_image.size
-    # print(width, height)
-    w = int(width / num)
-    for i in range(num):
-        image_list.append(combined_image.crop((w*i, 0, w*(i+1), height)))
-    return image_list
+# def load_all_data():
+#     dir_list = os.listdir('train_data/character/')
+#     train_data = []
+#     for i, char in enumerate(dir_list):
+#         if i % 20 == 0:
+#             print('[+]Loading: ' + str(i/len(dir_list)*100) + '% ...')
+#         folder = 'train_data/character/' + char + '/'
+#         file_list = os.listdir(folder)
+#         # print(file_list)
+#         single_char_list = []
+#         for filename in file_list:
+#             path = folder + filename
+#             image = Image.open(path)
+#             single_char_list.extend(horizon_crop(image, 49))
+#         train_data.extend([(np.array(img), char) for img in single_char_list])
+#     print('Shuffling ...')
+#     np.random.shuffle(train_data)
+#     print('Done')
+#     return train_data
+#
+#
+# def horizon_crop(combined_image, num):
+#     image_list = []
+#     width, height = combined_image.size
+#     # print(width, height)
+#     w = int(width / num)
+#     for i in range(num):
+#         image_list.append(combined_image.crop((w*i, 0, w*(i+1), height)))
+#     return image_list
 
 
 def get_primer_gb():
@@ -49,7 +47,7 @@ def get_primer_gb():
     return gb_list
 
 
-def get_batch(size, char_size=(64, 64), group_size=(256, 256), total_num=3355*13*72*2, one_hot_length=None):
+def get_batch(size, char_size=(64, 64), group_size=(128, 128), total_num=3355*13*72*2, one_hot_length=None):
     gb_list = get_primer_gb()
     label_map = {}
     for char, gb_id in gb_list:
@@ -105,14 +103,16 @@ def get_batch(size, char_size=(64, 64), group_size=(256, 256), total_num=3355*13
             yield np.array(ret_image_list, dtype=np.float32)/255, np.array(ret_label_list)
 
 
-def load_image_group(order, group_size=(256, 256), char_size=(64, 64)):
+def load_image_group(order, char_size=(64, 64), group_size=(128, 128)):
     print('Loading group {} ...'.format(order))
     _, total_col = group_size
     width, height = char_size
-    directory = 'train_data/train_data_batch/'
-    directory = 'train_data/train_data_new/'
+    # directory = 'train_data/train_data_batch/'
+    # directory = 'train_data/train_data_new/'
     directory = 'train_data/train_data_test/'
-    grouped_image = Image.open(directory + 'train_image_{}.jpg'.format(order))
+    # Image: limit of 178956970 pixels, or throw DecompressionBombError
+    # grouped_image = Image.open(directory + 'train_image_{}.jpg'.format(order))
+    grouped_image = cv.imread(directory + 'train_image_{}.jpg'.format(order), cv.IMREAD_GRAYSCALE)
     images = []
     labels = []
     with open(directory + 'train_label_{}.txt'.format(order), 'rt', encoding='utf8') as file:
@@ -122,7 +122,8 @@ def load_image_group(order, group_size=(256, 256), char_size=(64, 64)):
     for i in range(len(labels)):
         row = int(i / total_col)
         col = i % total_col
-        image = grouped_image.crop((col*width, row*height, (col+1)*width, (row+1)*height))
+        # image = grouped_image.crop((col*width, row*height, (col+1)*width, (row+1)*height))
+        image = grouped_image[row*height:(row+1)*height, col*width:(col+1)*width]
         images.append(np.array(image))
     print(len(labels), len(images))
     print('Load Done')

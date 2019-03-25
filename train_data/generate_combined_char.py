@@ -56,7 +56,7 @@ def get_primer_gb():
     gb_list = []
     gb_id = 1
     for i in range(start, end):
-        if (i & 0xF0) >> 4 < 0xA or i & 0xF == 0x0 or i & 0xF == 0xF:
+        if i & 0xF0 < 0xA0 or i & 0xFF == 0xA0 or i & 0xFF == 0xFF:
             continue
         character = str(i.to_bytes(length=2, byteorder='big'), 'gb2312')
         gb_list.append((character, gb_id))
@@ -93,8 +93,6 @@ def font2image(font_style, gb_list, char_size=(64, 64), max_angle=30, angle_step
     # 输出文字:
     optical_char_list = []
     char_info_list = []
-    # copy from get_integrate.py
-    # num_per_angle = [1, 1, 1, 1, 1, 1, 1, 1, 1, 2, 2, 2, 2, 3, 3, 3, 3, 3, 2, 2, 2, 2, 1, 1, 1, 1, 1, 1, 1, 1, 1]
     num_per_angle, amount = get_integrate.get_distribution(max_angle, angle_step)
     print('Total num of all angle per char:', amount)
     for char, code in gb_list:
@@ -120,9 +118,7 @@ def image_paste(target, source, box):
 
 
 # 共72*2*13*3355张图片 分为N张256*256的图片集以及一张剩余的图片集 以减少IO消耗
-def save_combined_image(all_char_list, char_size=(64, 64), group_size=(256, 256)):
-    print('shuffle ...')
-    np.random.shuffle(all_char_list)
+def save_combined_image(path, all_char_list, char_size=(64, 64), group_size=(128, 256)):
     order = 1
     curr_num = 0
     label_group = []
@@ -140,23 +136,20 @@ def save_combined_image(all_char_list, char_size=(64, 64), group_size=(256, 256)
         curr_num += 1
         if curr_num == max_num_per_group:
             curr_num = 0
-            save_image_and_label(container, label_group, order, group_size)
+            save_image_and_label(path, container, label_group, order, group_size)
             label_group = []
             container = np.zeros((total_row * height, total_col * width), dtype=np.uint8)
             order += 1
             print('Saving: {:.2f}% ...'.format(order/total_group_num*100))
-    if curr_num < max_num_per_group:
-        save_image_and_label(container, label_group, order, group_size)
+    if curr_num < max_num_per_group:   # 最后一组
+        save_image_and_label(path, container, label_group, order, group_size)
     print('Save Done')
 
 
-def save_image_and_label(image, label, order, label_size=(128, 128)):
-    total_row, total_col = label_size
-    directory = 'train_data_batch/'
-    # directory = 'train_data_new/'
-    # directory = 'train_data_test/'
-    cv.imencode('.jpg', image)[1].tofile(directory + 'train_image_{}.jpg'.format(order))
-    with open(directory + 'train_label_{}.txt'.format(order), 'wt', encoding='utf8') as file:
+def save_image_and_label(path, image, label, order, group_size=(128, 128)):
+    total_row, total_col = group_size
+    cv.imencode('.jpg', image)[1].tofile(path + 'images_{}.jpg'.format(order))
+    with open(path + 'labels_{}.txt'.format(order), 'wt', encoding='utf8') as file:
         for i in range(total_row):
             for j in range(total_col):
                 if i*total_col + j >= len(label):
@@ -168,22 +161,29 @@ def save_image_and_label(image, label, order, label_size=(128, 128)):
 
 def main():
     gb_list = get_primer_gb()
-    print(gb_list)
-    print(len(gb_list))
+    # print(gb_list)
+    print('Total char:', len(gb_list))
     font_style_list = ['simhei.ttf', 'simkai.ttf', 'simsun.ttc', 'msyh.ttc', 'STXINWEI.TTF', 'SIMLI.TTF', 'FZSTK.TTF',
                        'Deng.ttf', 'STXINGKA.TTF', 'FZYTK.TTF', 'simfang.ttf', 'SIMYOU.TTF', 'STSONG.TTF']
     all_char_list = []
-    for i, style in enumerate(font_style_list[:2]):
-        print(style, '{}/{}'.format(i, len(font_style_list)))
-        optical_char_list, char_info_list = font2image(style, gb_list[:2], char_size=(64, 64))
+    for i, style in enumerate(font_style_list):
+        print(style, '{}/{}'.format(i+1, len(font_style_list)))
+        optical_char_list, char_info_list = font2image(style, gb_list[:50], char_size=(64, 64))
         optical_char_list.extend(ImageEnhance().enhance(optical_char_list))
         char_info_list *= 2
-        # for image in optical_char_list:
-        #     cv.imshow('test', image)
-        #     cv.waitKey()
         all_char_list.extend(zip(optical_char_list, char_info_list))
-    print('Length:', len(all_char_list))
-    save_combined_image(all_char_list, char_size=(64, 64), group_size=(256, 256))
+    print('Shuffle ...')
+    np.random.shuffle(all_char_list)
+    test_data_ratio = 0.1
+    test_data_length = int(len(all_char_list)*test_data_ratio)
+
+    print('Total Length:', len(all_char_list))
+    print('Train data length:', len(all_char_list)-test_data_length)
+    print('Test data length:', test_data_length)
+    path_train = 'data_train/'
+    path_test = 'data_test/'
+    save_combined_image(path_train, all_char_list[:-test_data_length], char_size=(64, 64), group_size=(256, 256))
+    save_combined_image(path_test, all_char_list[-test_data_length:], char_size=(64, 64), group_size=(256, 256))
 
 
 if __name__ == '__main__':

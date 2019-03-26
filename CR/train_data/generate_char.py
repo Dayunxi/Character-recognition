@@ -96,7 +96,7 @@ def font2image(font_style, gb_list):
     amount = [1, 1, 1, 1, 1, 1, 1, 1, 1, 2, 2, 2, 2, 3, 3, 3, 3, 3, 2, 2, 2, 2, 1, 1, 1, 1, 1, 1, 1, 1, 1]
     for char, code in gb_list:
         if code % 100 == 0:
-            print('[+]Font2image: ' + str(code/len(gb_list)*100) + '% ...')
+            print('[+]Font2image: {:.2f}% ...'.format(code/len(gb_list)*100))
         image.paste(0, (0, 0, canvas_width, canvas_height))  # erase
         draw.text((5, 5), char, font=font, fill=255)
         for i, angle in enumerate(range(-max_angle, max_angle+1, angle_step)):
@@ -137,7 +137,7 @@ def save_combined_image(optical_char_list, char_info_list, font_style):
         word_dict[char].append(image)
     for order, key in enumerate(word_dict):
         if order % 100 == 0:
-            print('[+]Save: ' + str(order/len(word_dict)*100) + '% ...')
+            print('[+]Save: {:.2f}% ...'.format(order/len(word_dict)*100))
         file_dict = 'character/{}/'.format(key)
         file_name = '{}_{}.jpg'.format(key, font_style)
         if os.path.exists(file_dict + file_name):
@@ -167,6 +167,6 @@ def main():
 
 
 if __name__ == '__main__':
-    start = time.time()
+    begin = time.time()
     main()
-    print('Total Time:', (time.time() - start) / 60)
+    print('Total Time:', (time.time() - begin) / 60)

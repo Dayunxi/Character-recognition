@@ -1,24 +1,12 @@
 import cv2 as cv
 import numpy as np
 
-
-def get_primer_gb():
-    start = 0xB0A1
-    end = 0xD7FA
-    gb_list = []
-    gb_id = 0
-    for i in range(start, end):
-        if i & 0xF0 < 0xA0 or i & 0xFF == 0xA0 or i & 0xFF == 0xFF:
-            continue
-        character = str(i.to_bytes(length=2, byteorder='big'), 'gb2312')
-        gb_list.append((character, gb_id))
-        gb_id += 1
-    return gb_list
+import get_chinese
 
 
 # length should less than multiply(group_size)
 def get_batch(path, length, total_num, char_size=(64, 64), group_size=(128, 128), one_hot_length=None):
-    gb_list = get_primer_gb()
+    gb_list = get_chinese.get_primary_gb()
     label_map = {}
     for char, gb_id in gb_list:
         label_map[char] = gb_id
@@ -34,6 +22,7 @@ def get_batch(path, length, total_num, char_size=(64, 64), group_size=(128, 128)
 
     while loaded_num < total_num:
         if curr_group_remain == 0:
+            del curr_images, curr_labels
             curr_images, curr_labels = load_image_group(path, next_order, char_size=char_size, group_size=group_size)
             curr_pointer = 0
             curr_group_remain = len(curr_labels)
@@ -43,6 +32,7 @@ def get_batch(path, length, total_num, char_size=(64, 64), group_size=(128, 128)
             ret_image_list = curr_images[curr_pointer:]
             ret_label_list = curr_labels[curr_pointer:]
             if loaded_num + length < total_num:
+                del curr_images, curr_labels
                 curr_images, curr_labels = load_image_group(path, next_order, char_size=char_size, group_size=group_size)
                 curr_pointer = 0
                 curr_group_remain = len(curr_labels)
@@ -70,7 +60,7 @@ def get_batch(path, length, total_num, char_size=(64, 64), group_size=(128, 128)
         if one_hot_length is not None:
             yield np.array(ret_image_list, dtype=np.float32)/255, get_one_hot(ret_label_list, one_hot_length)
         else:
-            yield np.array(ret_image_list, dtype=np.float32)/255, np.array(ret_label_list)
+            yield np.array(ret_image_list, dtype=np.float32), np.array(ret_label_list)
 
 
 def load_image_group(path, order, char_size=(64, 64), group_size=(128, 128)):
@@ -78,7 +68,7 @@ def load_image_group(path, order, char_size=(64, 64), group_size=(128, 128)):
     _, total_col = group_size
     width, height = char_size
 
-    grouped_image = cv.imread(path + 'images_{}.jpg'.format(order), cv.IMREAD_GRAYSCALE)
+    grouped_image = binary_image(np.array(cv.imread(path + 'images_{}.jpg'.format(order), cv.IMREAD_GRAYSCALE)))
     images = []
     labels = []
     with open(path + 'labels_{}.txt'.format(order), 'rt', encoding='utf8') as file:
@@ -89,7 +79,7 @@ def load_image_group(path, order, char_size=(64, 64), group_size=(128, 128)):
         row = int(i / total_col)
         col = i % total_col
         image = grouped_image[row*height:(row+1)*height, col*width:(col+1)*width]
-        images.append(np.array(image))
+        images.append(image)
     print(len(labels), len(images))
     print('Load Done')
     return images, labels
@@ -102,16 +92,22 @@ def get_one_hot(arr, dim):
     return matrix
 
 
+# 二值化
+def binary_image(image):
+    # 原图黑字白底
+    threshold, ret = cv.threshold(image, 0, 255, cv.THRESH_OTSU)
+    # for row in ret:
+    #     print(row)
+    # cv.imshow('kkp', ret)
+    # cv.waitKey()
+    return ret
+
+
 def main():
-    gb_list = get_primer_gb()
-    label_id = {}
-    id_label = {}
-    for char, gb_id in gb_list:
-        label_id[char] = gb_id
-        id_label[gb_id] = char
+    label_id, id_label = get_chinese.get_char_map()
 
     batch_size = 50
-    batch_gen = get_batch('', batch_size, total_num=3355*13*72*2, group_size=(256, 256))
+    batch_gen = get_batch('train_data/data_test/', batch_size, total_num=3755*13*72*2, group_size=(256, 256))
     try:
         while True:
             batch = next(batch_gen)
@@ -120,7 +116,7 @@ def main():
             for i in range(len(images)):
                 pos = np.argmax(labels[i])
                 print(pos, id_label[pos], i)
-                cv.imshow('image', images[i])
+                cv.imshow('image', np.array(images[i], dtype=np.uint8))
                 cv.waitKey()
     except StopIteration:
         pass

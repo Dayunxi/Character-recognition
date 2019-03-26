@@ -4,7 +4,7 @@ import numpy as np
 
 def draw(accuracy, loss, alpha):
     length = len(loss)
-    x = [10*i for i in range(length)]
+    x = [50*i for i in range(length)]
     h1, = plt.plot(x, accuracy, 'r', label='accuracy')
     plt.ylabel('Accuracy')
     plt.xlabel('Step')
@@ -16,9 +16,9 @@ def draw(accuracy, loss, alpha):
 
 
 def main():
-    alpha_list = [0.01, 0.001, 0.0005]
+    alpha_list = [0.0015, 0.0013, 0.001, 0.0008]
     for i, alpha in enumerate(alpha_list):
-        with open('accuracy_loss_{}.txt'.format(alpha), 'r') as file:
+        with open('accuracy_loss_{}.txt'.format(str(alpha)), 'r') as file:
             plt.subplot(2, 2, i + 1)
             line = file.readline()
             acc_list = np.array(line.split(', '), dtype=np.float32)

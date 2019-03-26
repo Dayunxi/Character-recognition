@@ -4,6 +4,7 @@ import numpy as np
 import time
 
 import get_integrate
+import get_chinese
 
 
 class ImageEnhance(object):
@@ -48,20 +49,6 @@ class ImageEnhance(object):
             ret_img_list.append(self.add_noise(ret_img))
         print('Done')
         return ret_img_list
-
-
-def get_primer_gb():
-    start = 0xB0A1
-    end = 0xD7FA
-    gb_list = []
-    gb_id = 1
-    for i in range(start, end):
-        if i & 0xF0 < 0xA0 or i & 0xFF == 0xA0 or i & 0xFF == 0xFF:
-            continue
-        character = str(i.to_bytes(length=2, byteorder='big'), 'gb2312')
-        gb_list.append((character, gb_id))
-        gb_id += 1
-    return gb_list
 
 
 def char_resize(char_image, max_width, max_height):
@@ -160,15 +147,15 @@ def save_image_and_label(path, image, label, order, group_size=(128, 128)):
 
 
 def main():
-    gb_list = get_primer_gb()
-    # print(gb_list)
+    gb_list = get_chinese.get_primary_gb()
     print('Total char:', len(gb_list))
+
     font_style_list = ['simhei.ttf', 'simkai.ttf', 'simsun.ttc', 'msyh.ttc', 'STXINWEI.TTF', 'SIMLI.TTF', 'FZSTK.TTF',
                        'Deng.ttf', 'STXINGKA.TTF', 'FZYTK.TTF', 'simfang.ttf', 'SIMYOU.TTF', 'STSONG.TTF']
     all_char_list = []
     for i, style in enumerate(font_style_list):
         print(style, '{}/{}'.format(i+1, len(font_style_list)))
-        optical_char_list, char_info_list = font2image(style, gb_list[:50], char_size=(64, 64))
+        optical_char_list, char_info_list = font2image(style, gb_list[:1000], char_size=(64, 64))
         optical_char_list.extend(ImageEnhance().enhance(optical_char_list))
         char_info_list *= 2
         all_char_list.extend(zip(optical_char_list, char_info_list))

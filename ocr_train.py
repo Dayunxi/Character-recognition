@@ -10,16 +10,16 @@ import tensorflow as tf
 
 import load_train_data
 
-import cv2 as cv
-import numpy as np
+import time
 
 
 FLAGS = None
 WIDTH = 64
 HEIGHT = 64
-CHAR_NUM = 3355
-TOTAL_NUM = 13*72*2*CHAR_NUM
+CHAR_NUM = 1000
+TOTAL_NUM = 1684800
 GROUP_SIZE = (256, 256)
+ALPHA = 0.0013
 
 
 def deepnn(x):
@@ -83,8 +83,8 @@ def deepnn(x):
     with tf.name_scope('conv5'):
         h_conv5 = tf.nn.relu(conv2d(h_conv4, weights['W_conv5']) + biases['b_conv5'])
 
-    with tf.name_scope('pool5'):
-        h_pool5 = max_pool_2x2(h_conv5)
+    with tf.name_scope('pool4'):
+        h_pool4 = max_pool_2x2(h_conv5)
 
     # Fully connected layer 1 -- after 2 round of downsampling, our 28x28 image
     # is down to 7x7x64 feature maps -- maps this to 1024 features.
@@ -92,8 +92,8 @@ def deepnn(x):
         W_fc1 = weight_variable([4 * 4 * 512, 1024])
         b_fc1 = bias_variable([1024])
 
-        h_pool2_flat = tf.reshape(h_pool5, [-1, 4 * 4 * 512])
-        h_fc1 = tf.nn.relu(tf.matmul(h_pool2_flat, W_fc1) + b_fc1)
+        h_pool4_flat = tf.reshape(h_pool4, [-1, 4 * 4 * 512])
+        h_fc1 = tf.nn.relu(tf.matmul(h_pool4_flat, W_fc1) + b_fc1)
 
     # Dropout - controls the complexity of the model, prevents co-adaptation of
     # features.
@@ -129,13 +129,12 @@ def weight_variable(shape):
 
 def bias_variable(shape):
     """bias_variable generates a bias variable of a given shape."""
-    initial = tf.constant(0.1, shape=shape)
+    initial = tf.constant(0., shape=shape)
     return tf.Variable(initial)
 
 
-def main(_):
-    # Import data
-    # mnist = input_data.read_data_sets(FLAGS.data_dir, one_hot=True)
+def main():
+    time_begin = time.time()
 
     # Create the model
     x = tf.placeholder(tf.float32, [None, HEIGHT, WIDTH])
@@ -152,7 +151,7 @@ def main(_):
     cross_entropy = tf.reduce_mean(cross_entropy)
 
     with tf.name_scope('adam_optimizer'):
-        train_step = tf.train.AdamOptimizer(1e-4).minimize(cross_entropy)
+        train_step = tf.train.AdamOptimizer(ALPHA).minimize(cross_entropy)
 
     with tf.name_scope('accuracy'):
         correct_prediction = tf.equal(tf.argmax(y_conv, 1), tf.argmax(y_, 1))
@@ -164,47 +163,49 @@ def main(_):
     train_writer = tf.summary.FileWriter(graph_location)
     train_writer.add_graph(tf.get_default_graph())
 
-    batch_size = 50
-    batch_gen = load_train_data.get_batch(batch_size, total_num=TOTAL_NUM, group_size=GROUP_SIZE)
+    print('Alpha:', ALPHA)
+
+    accuracy_list = []
+    loss_list = []
 
     with tf.Session() as sess:
         saver = tf.train.Saver()
         sess.run(tf.global_variables_initializer())
+        batch_size = 50
+        path_train = 'train_data/data_train/'
+        batch_gen = load_train_data.get_batch(path_train, batch_size, total_num=TOTAL_NUM, one_hot_length=CHAR_NUM,
+                                              char_size=(WIDTH, HEIGHT), group_size=GROUP_SIZE)
+        curr_step = 1
         try:
-            for i in range(100000):
+            while True:
                 batch = next(batch_gen)
                 images, labels = batch
-                # print(images[0])
-                # for image in images:
-                #     for row in image:
-                #         print(row)
-                #     cv.imshow('test', np.array(images[0]*255, dtype=np.uint8))
-                #     cv.waitKey()
-                # for j in range(batch_size):
-                #     for pos in range(3355):
-                #         if labels[j][pos] == 1:
-                #             print(pos, j)
-                #             break
-                #     # print(labels[j])
-                #     cv.imshow('test', images[j])
-                #     cv.waitKey()
-                if i % 10 == 0:
+                if curr_step % 50 == 0:
                     train_accuracy = accuracy.eval(feed_dict={x: images, y_: labels, keep_prob: 1.0})
-                    print('step %d, training accuracy %g' % (i, train_accuracy))
+                    train_loss = cross_entropy.eval(feed_dict={x: images, y_: labels, keep_prob: 1.0})
+                    print('Step {}, Total Time {:.1f}min, Training accuracy {:.2f}%, Loss {}'.format(
+                        curr_step, (time.time()-time_begin)/60, train_accuracy*100, train_loss))
+                    accuracy_list.append(train_accuracy)
+                    loss_list.append(train_loss)
                 train_step.run(feed_dict={x: images, y_: labels, keep_prob: 0.5})
-                if i == 1000:
-                    saver.save(sess, 'model/ocr-model', global_step=i)
+                if curr_step % 1000 == 0:
+                    saver.save(sess, 'model/ocr-model', global_step=curr_step)
+                curr_step += 1
         except StopIteration:
-            pass
-
-        # print('test accuracy %g' % accuracy.eval(feed_dict={
-        #     x: mnist.test.images[:1000], y_: mnist.test.labels[:1000], keep_prob: 1.0}))
+            saver.save(sess, 'model/ocr-model', global_step=curr_step)
+        print("Testing ...")
+        batch_gen = load_train_data.get_batch('train_data/data_test/', 100, total_num=9360,
+                                              char_size=(WIDTH, HEIGHT), group_size=GROUP_SIZE, one_hot_length=CHAR_NUM)
+        batch = next(batch_gen)
+        images, labels = batch
+        train_accuracy = accuracy.eval(feed_dict={x: images, y_: labels, keep_prob: 1.0})
+        print('Accuracy: {:.2f}%'.format(train_accuracy*100))
+    print('Alpha:', ALPHA)
+    with open('accuracy_loss_{}.txt'.format(ALPHA), 'wt') as file:
+        file.write(', '.join([str(num) for num in accuracy_list]))
+        file.write('\n')
+        file.write(', '.join([str(num) for num in loss_list]))
 
 
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser()
-    parser.add_argument('--data_dir', type=str,
-                        default='/tmp/tensorflow/mnist/input_data',
-                        help='Directory for storing input data')
-    FLAGS, unparsed = parser.parse_known_args()
-    tf.app.run(main=main, argv=[sys.argv[0]] + unparsed)
+    main()

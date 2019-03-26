@@ -1,7 +1,3 @@
-import argparse
-import sys
-import tempfile
-
 import tensorflow as tf
 
 import load_train_data
@@ -13,8 +9,8 @@ import numpy as np
 FLAGS = None
 WIDTH = 64
 HEIGHT = 64
-CHAR_NUM = 50
-TOTAL_NUM = 9360
+CHAR_NUM = 1000
+TOTAL_NUM = 187200
 GROUP_SIZE = (256, 256)
 
 label_id = {}

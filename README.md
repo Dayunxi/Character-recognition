@@ -13,7 +13,7 @@
 为每个字生成64*64的灰度图千余张(13*72*2=1872)，字体旋转限制在30度以内，其中一半随机被腐蚀或膨胀并添加椒盐噪声
 
 为了降低IO损耗，不将每个字单独存为一张图，而是将256*256张图片依次并入一张图，且存入磁盘前会先对所有字体图片进行shuffle，同时生成含有256*256个Label的txt文件
-![train_image](./image/image_1.jpg)
+![train_image](./images/image_1.jpg)
 
 ### 识别
 
@@ -23,4 +23,4 @@ conv1->pool1->conv2->pool2->conv3->pool3->conv4->conv5->pool4->fc1->fc2
 
 暂时在1000个汉字时表现良好
 学习率在[0.0015, 0.0013, 0.001, 0.0008, 0.0005]之间均收敛，其中0.0013收敛最早
-![Accuracy&Loss](./image/image_2.png)
+![Accuracy&Loss](./images/image_2.png)

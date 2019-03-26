@@ -1,2 +1,6 @@
 /.idea
-/image/*
+/CR/model
+/CR/checkpoint
+/CR/train_data/data_test
+/CR/train_data/data_train
+/CR/train_data/font

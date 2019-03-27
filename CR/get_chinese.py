@@ -20,3 +20,10 @@ def get_char_map():
         label_id[char] = gb_id
         id_label[gb_id] = char
     return label_id, id_label
+
+
+if __name__ == '__main__':
+    label_map, _ = get_char_map()
+    with open('../char_label.txt', 'wt', encoding='utf8') as file:
+        file.write(str(label_map))
+    # print(label_id)

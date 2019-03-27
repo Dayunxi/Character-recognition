@@ -3,6 +3,8 @@ import cv2 as cv
 import numpy as np
 import time
 
+import sys
+sys.path.append('../')
 import get_integrate
 import get_chinese
 

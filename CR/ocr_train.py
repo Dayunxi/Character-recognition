@@ -192,6 +192,7 @@ def main():
         except KeyboardInterrupt:
             print('Alpha:', ALPHA)
             save_acc_loss(accuracy_list, loss_list)
+            saver.save(sess, 'model/ocr-model', global_step=curr_step)
         print("Testing ...")
         batch_gen = load_train_data.get_batch('train_data/data_test2/', 100, total_num=9360,
                                               char_size=(WIDTH, HEIGHT), group_size=GROUP_SIZE, one_hot_length=CHAR_NUM)

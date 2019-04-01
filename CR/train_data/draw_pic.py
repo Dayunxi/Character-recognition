@@ -11,12 +11,12 @@ def draw(accuracy, loss, alpha):
     plt.twinx()
     h2, = plt.plot(x, loss, 'b', label='loss')
     plt.ylabel('Loss')
-    plt.legend(handles=(h1, h2), loc='upper left')
+    plt.legend(handles=(h1, h2), loc='center left')
     plt.title('Accuracy & Loss, Alpha=' + str(alpha))
 
 
 def main():
-    alpha_list = [0.0015, 0.0013, 0.001, 0.0008]
+    alpha_list = [0.00158, 0.001573, 0.00155, 0.0015]
     for i, alpha in enumerate(alpha_list):
         with open('accuracy_loss_{}.txt'.format(str(alpha)), 'r') as file:
             plt.subplot(2, 2, i + 1)

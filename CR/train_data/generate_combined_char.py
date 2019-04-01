@@ -3,6 +3,7 @@ import cv2 as cv
 import numpy as np
 import time
 
+import os
 import sys
 sys.path.append('../')
 import get_integrate
@@ -154,10 +155,12 @@ def main():
 
     font_style_list = ['simhei.ttf', 'simkai.ttf', 'simsun.ttc', 'msyh.ttc', 'STXINWEI.TTF', 'SIMLI.TTF', 'FZSTK.TTF',
                        'Deng.ttf', 'STXINGKA.TTF', 'FZYTK.TTF', 'simfang.ttf', 'SIMYOU.TTF', 'STSONG.TTF']
+    # font_style_list = os.listdir('./wtf')
+    # print(font_style_list)
     all_char_list = []
     for i, style in enumerate(font_style_list):
         print(style, '{}/{}'.format(i+1, len(font_style_list)))
-        optical_char_list, char_info_list = font2image(style, gb_list[:1000], char_size=(64, 64))
+        optical_char_list, char_info_list = font2image(style, gb_list[:2000], char_size=(64, 64))
         optical_char_list.extend(ImageEnhance().enhance(optical_char_list))
         char_info_list *= 2
         all_char_list.extend(zip(optical_char_list, char_info_list))

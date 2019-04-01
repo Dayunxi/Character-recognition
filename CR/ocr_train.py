@@ -2,8 +2,6 @@ from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 
-import argparse
-import sys
 import tempfile
 
 import tensorflow as tf
@@ -16,10 +14,10 @@ import time
 FLAGS = None
 WIDTH = 64
 HEIGHT = 64
-CHAR_NUM = 1000
-TOTAL_NUM = 1684800
+CHAR_NUM = 2000
+TOTAL_NUM = 3369600
 GROUP_SIZE = (256, 256)
-ALPHA = 0.0013
+ALPHA = 0.00155
 
 
 def deepnn(x):
@@ -40,6 +38,8 @@ def deepnn(x):
         'W_conv3': weight_variable([3, 3, 128, 256]),
         'W_conv4': weight_variable([3, 3, 256, 512]),
         'W_conv5': weight_variable([3, 3, 512, 512]),
+        'W_fc1': weight_variable([4 * 4 * 512, 1024]),
+        'W_fc2': weight_variable([1024, CHAR_NUM])
     }
     biases = {
         'b_conv1': bias_variable([64]),
@@ -47,6 +47,8 @@ def deepnn(x):
         'b_conv3': bias_variable([256]),
         'b_conv4': bias_variable([512]),
         'b_conv5': bias_variable([512]),
+        'b_fc1': bias_variable([1024]),
+        'b_fc2': bias_variable([CHAR_NUM])
     }
 
     # Reshape to use within a convolutional neural net.
@@ -89,11 +91,8 @@ def deepnn(x):
     # Fully connected layer 1 -- after 2 round of downsampling, our 28x28 image
     # is down to 7x7x64 feature maps -- maps this to 1024 features.
     with tf.name_scope('fc1'):
-        W_fc1 = weight_variable([4 * 4 * 512, 1024])
-        b_fc1 = bias_variable([1024])
-
         h_pool4_flat = tf.reshape(h_pool4, [-1, 4 * 4 * 512])
-        h_fc1 = tf.nn.relu(tf.matmul(h_pool4_flat, W_fc1) + b_fc1)
+        h_fc1 = tf.nn.relu(tf.matmul(h_pool4_flat, weights['W_fc1']) + biases['b_fc1'])
 
     # Dropout - controls the complexity of the model, prevents co-adaptation of
     # features.
@@ -103,10 +102,7 @@ def deepnn(x):
 
     # Map the 1024 features to 10 classes, one for each digit
     with tf.name_scope('fc2'):
-        W_fc2 = weight_variable([1024, CHAR_NUM])
-        b_fc2 = bias_variable([CHAR_NUM])
-
-        y_conv = tf.matmul(h_fc1_drop, W_fc2) + b_fc2
+        y_conv = tf.matmul(h_fc1_drop, weights['W_fc2']) + biases['b_fc2']
     return y_conv, keep_prob
 
 
@@ -171,8 +167,8 @@ def main():
     with tf.Session() as sess:
         saver = tf.train.Saver()
         sess.run(tf.global_variables_initializer())
-        batch_size = 50
-        path_train = 'train_data/data_train/'
+        batch_size = 128
+        path_train = 'train_data/data_train2/'
         batch_gen = load_train_data.get_batch(path_train, batch_size, total_num=TOTAL_NUM, one_hot_length=CHAR_NUM,
                                               char_size=(WIDTH, HEIGHT), group_size=GROUP_SIZE)
         curr_step = 1
@@ -188,23 +184,34 @@ def main():
                     accuracy_list.append(train_accuracy)
                     loss_list.append(train_loss)
                 train_step.run(feed_dict={x: images, y_: labels, keep_prob: 0.5})
-                if curr_step % 1000 == 0:
+                if curr_step % 3000 == 0:
                     saver.save(sess, 'model/ocr-model', global_step=curr_step)
                 curr_step += 1
         except StopIteration:
             saver.save(sess, 'model/ocr-model', global_step=curr_step)
+        except KeyboardInterrupt:
+            print('Alpha:', ALPHA)
+            save_acc_loss(accuracy_list, loss_list)
         print("Testing ...")
-        batch_gen = load_train_data.get_batch('train_data/data_test/', 100, total_num=9360,
+        batch_gen = load_train_data.get_batch('train_data/data_test2/', 100, total_num=9360,
                                               char_size=(WIDTH, HEIGHT), group_size=GROUP_SIZE, one_hot_length=CHAR_NUM)
         batch = next(batch_gen)
         images, labels = batch
         train_accuracy = accuracy.eval(feed_dict={x: images, y_: labels, keep_prob: 1.0})
         print('Accuracy: {:.2f}%'.format(train_accuracy*100))
     print('Alpha:', ALPHA)
+    save_acc_loss(accuracy_list, loss_list)
+    # with open('accuracy_loss_{}.txt'.format(ALPHA), 'wt') as file:
+    #     file.write(', '.join([str(num) for num in accuracy_list]))
+    #     file.write('\n')
+    #     file.write(', '.join([str(num) for num in loss_list]))
+
+
+def save_acc_loss(acc, loss):
     with open('accuracy_loss_{}.txt'.format(ALPHA), 'wt') as file:
-        file.write(', '.join([str(num) for num in accuracy_list]))
+        file.write(', '.join([str(num) for num in acc]))
         file.write('\n')
-        file.write(', '.join([str(num) for num in loss_list]))
+        file.write(', '.join([str(num) for num in loss]))
 
 
 if __name__ == '__main__':

@@ -160,7 +160,7 @@ def main():
     all_char_list = []
     for i, style in enumerate(font_style_list):
         print(style, '{}/{}'.format(i+1, len(font_style_list)))
-        optical_char_list, char_info_list = font2image(style, gb_list[:2000], char_size=(64, 64))
+        optical_char_list, char_info_list = font2image(style, gb_list, char_size=(64, 64))
         optical_char_list.extend(ImageEnhance().enhance(optical_char_list))
         char_info_list *= 2
         all_char_list.extend(zip(optical_char_list, char_info_list))

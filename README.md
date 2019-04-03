@@ -27,3 +27,8 @@ conv1->pool1->conv2->pool2->conv3->pool3->conv4->conv5->pool4->fc1->fc2
 
 2000字正确率略低一点 95%-96% 学习率在0.0015-0.00158之间， 有概率不收敛
 ![Accuracy&Loss](./images/char_num=2000_1.png)
+
+---
+
+全连接层从1024扩展至2048后对3755个汉字的识别很快开始收敛，但收敛后方差偏大
+![Accuracy&Loss](./images/char_num=3755_1.png)

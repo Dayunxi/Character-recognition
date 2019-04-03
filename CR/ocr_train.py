@@ -14,10 +14,14 @@ import time
 FLAGS = None
 WIDTH = 64
 HEIGHT = 64
-CHAR_NUM = 2000
-TOTAL_NUM = 3369600
+CHAR_NUM = 3755
+TOTAL_NUM = int(CHAR_NUM*13*72*2*0.9)
+BATCH_SIZE = 64
 GROUP_SIZE = (256, 256)
-ALPHA = 0.00155
+ALPHA = 0.00158
+STDDEV = 0.01
+INFO_STEP = 50
+SAVE_STEP = 10000
 
 
 def deepnn(x):
@@ -38,8 +42,8 @@ def deepnn(x):
         'W_conv3': weight_variable([3, 3, 128, 256]),
         'W_conv4': weight_variable([3, 3, 256, 512]),
         'W_conv5': weight_variable([3, 3, 512, 512]),
-        'W_fc1': weight_variable([4 * 4 * 512, 1024]),
-        'W_fc2': weight_variable([1024, CHAR_NUM])
+        'W_fc1': weight_variable([4 * 4 * 512, 2048]),
+        'W_fc2': weight_variable([2048, CHAR_NUM])
     }
     biases = {
         'b_conv1': bias_variable([64]),
@@ -47,7 +51,7 @@ def deepnn(x):
         'b_conv3': bias_variable([256]),
         'b_conv4': bias_variable([512]),
         'b_conv5': bias_variable([512]),
-        'b_fc1': bias_variable([1024]),
+        'b_fc1': bias_variable([2048]),
         'b_fc2': bias_variable([CHAR_NUM])
     }
 
@@ -119,7 +123,7 @@ def max_pool_2x2(x):
 
 def weight_variable(shape):
     """weight_variable generates a weight variable of a given shape."""
-    initial = tf.truncated_normal(shape, stddev=0.1)
+    initial = tf.truncated_normal(shape, stddev=STDDEV)
     return tf.Variable(initial)
 
 
@@ -167,8 +171,8 @@ def main():
     with tf.Session() as sess:
         saver = tf.train.Saver()
         sess.run(tf.global_variables_initializer())
-        batch_size = 128
-        path_train = 'train_data/data_train2/'
+        batch_size = BATCH_SIZE
+        path_train = 'train_data/data_train/'
         batch_gen = load_train_data.get_batch(path_train, batch_size, total_num=TOTAL_NUM, one_hot_length=CHAR_NUM,
                                               char_size=(WIDTH, HEIGHT), group_size=GROUP_SIZE)
         curr_step = 1
@@ -176,7 +180,7 @@ def main():
             while True:
                 batch = next(batch_gen)
                 images, labels = batch
-                if curr_step % 50 == 0:
+                if curr_step % INFO_STEP == 0:
                     train_accuracy = accuracy.eval(feed_dict={x: images, y_: labels, keep_prob: 1.0})
                     train_loss = cross_entropy.eval(feed_dict={x: images, y_: labels, keep_prob: 1.0})
                     print('Step {}, Total Time {:.1f}min, Training accuracy {:.2f}%, Loss {}'.format(
@@ -184,28 +188,31 @@ def main():
                     accuracy_list.append(train_accuracy)
                     loss_list.append(train_loss)
                 train_step.run(feed_dict={x: images, y_: labels, keep_prob: 0.5})
-                if curr_step % 3000 == 0:
+                if curr_step % SAVE_STEP == 0:
                     saver.save(sess, 'model/ocr-model', global_step=curr_step)
                 curr_step += 1
         except StopIteration:
-            saver.save(sess, 'model/ocr-model', global_step=curr_step)
-        except KeyboardInterrupt:
-            print('Alpha:', ALPHA)
             save_acc_loss(accuracy_list, loss_list)
             saver.save(sess, 'model/ocr-model', global_step=curr_step)
-        print("Testing ...")
-        batch_gen = load_train_data.get_batch('train_data/data_test2/', 100, total_num=9360,
-                                              char_size=(WIDTH, HEIGHT), group_size=GROUP_SIZE, one_hot_length=CHAR_NUM)
-        batch = next(batch_gen)
-        images, labels = batch
-        train_accuracy = accuracy.eval(feed_dict={x: images, y_: labels, keep_prob: 1.0})
-        print('Accuracy: {:.2f}%'.format(train_accuracy*100))
-    print('Alpha:', ALPHA)
-    save_acc_loss(accuracy_list, loss_list)
-    # with open('accuracy_loss_{}.txt'.format(ALPHA), 'wt') as file:
-    #     file.write(', '.join([str(num) for num in accuracy_list]))
-    #     file.write('\n')
-    #     file.write(', '.join([str(num) for num in loss_list]))
+        except KeyboardInterrupt:
+            if loss_list[-1] < 1:
+                save_acc_loss(accuracy_list, loss_list)
+                saver.save(sess, 'model/ocr-model', global_step=curr_step)
+        # print("Testing ...")
+        # batch_gen = load_train_data.get_batch('train_data/data_test/', 100, total_num=200,
+        #                                       char_size=(WIDTH, HEIGHT), group_size=GROUP_SIZE, one_hot_length=CHAR_NUM)
+        # batch = next(batch_gen)
+        # images, labels = batch
+        # train_accuracy = accuracy.eval(feed_dict={x: images, y_: labels, keep_prob: 1.0})
+        # print('Accuracy: {:.2f}%'.format(train_accuracy*100))
+    display_config()
+
+
+def display_config():
+    print('char num:', CHAR_NUM)
+    print('learning rate:', ALPHA)
+    print('stddev:', STDDEV)
+    print('batch size:', BATCH_SIZE)
 
 
 def save_acc_loss(acc, loss):

@@ -60,7 +60,7 @@ def get_batch(path, length, total_num, char_size=(64, 64), group_size=(128, 128)
         if one_hot_length is not None:
             yield np.array(ret_image_list, dtype=np.float32)/255, get_one_hot(ret_label_list, one_hot_length)
         else:
-            yield np.array(ret_image_list, dtype=np.float32), np.array(ret_label_list)
+            yield np.array(ret_image_list, dtype=np.float32)/255, np.array(ret_label_list)
 
 
 def load_image_group(path, order, char_size=(64, 64), group_size=(128, 128)):

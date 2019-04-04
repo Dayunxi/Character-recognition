@@ -32,3 +32,7 @@ conv1->pool1->conv2->pool2->conv3->pool3->conv4->conv5->pool4->fc1->fc2
 
 全连接层从1024扩展至2048后对3755个汉字的识别很快开始收敛，但收敛后方差偏大
 ![Accuracy&Loss](./images/char_num=3755_1.png)
+
+将batch_size改为128后较稳定，收敛更快
+![Accuracy&Loss](./images/char_num=3755.png)
+

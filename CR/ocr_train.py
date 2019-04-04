@@ -16,11 +16,11 @@ WIDTH = 64
 HEIGHT = 64
 CHAR_NUM = 3755
 TOTAL_NUM = int(CHAR_NUM*13*72*2*0.9)
-BATCH_SIZE = 64
+BATCH_SIZE = 128
 GROUP_SIZE = (256, 256)
 ALPHA = 0.00158
-STDDEV = 0.01
-INFO_STEP = 50
+STDDEV = 0.085
+INFO_STEP = 25
 SAVE_STEP = 10000
 
 
@@ -198,13 +198,6 @@ def main():
             if loss_list[-1] < 1:
                 save_acc_loss(accuracy_list, loss_list)
                 saver.save(sess, 'model/ocr-model', global_step=curr_step)
-        # print("Testing ...")
-        # batch_gen = load_train_data.get_batch('train_data/data_test/', 100, total_num=200,
-        #                                       char_size=(WIDTH, HEIGHT), group_size=GROUP_SIZE, one_hot_length=CHAR_NUM)
-        # batch = next(batch_gen)
-        # images, labels = batch
-        # train_accuracy = accuracy.eval(feed_dict={x: images, y_: labels, keep_prob: 1.0})
-        # print('Accuracy: {:.2f}%'.format(train_accuracy*100))
     display_config()
 
 

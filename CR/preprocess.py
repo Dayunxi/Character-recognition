@@ -1,7 +1,8 @@
 import cv2 as cv
 import matplotlib.pyplot as plt
 import numpy as np
-
+import scipy.interpolate as spi
+from scipy.signal import find_peaks
 
 """
     降噪
@@ -136,14 +137,26 @@ def get_vertical_stat(image):
 def get_horizon_stat(image):
     min_height = 12
     min_pixel = 1
+    adaptive_threshold = 1
     rows, cols = image.shape
     stat = np.zeros(rows, dtype=int)
+    print('statistic ...')
     for i in range(rows):
         for j in range(cols):
             if image[i][j] == 255:
                 stat[i] += 1
 
-    plt.barh(range(rows), [d for d in reversed(stat)], height=1)
+    # 效果不太好
+    print('drawing ...')
+    x = [i for i in range(rows)]
+    plt.subplot(121)
+    plt.barh(x, [d for d in reversed(stat)], height=1)
+    cubic = spi.interp1d(x, stat, kind=3)
+    plt.subplot(122)
+    y = cubic(x)
+    plt.plot(y)
+    peaks, _ = find_peaks(-y, distance=min_height)
+    plt.plot(peaks, y[peaks], 'x')
     plt.show()
 
     row_split = []
@@ -235,13 +248,13 @@ def save_combined_image(path, all_char_list, char_size=(64, 64), group_size=(16,
 
 
 def main():
-    image = read_image("input_image/test2.jpg")
+    image = read_image("input_image/test10.jpg")
     image = binary_image(image)
     image = hough_transform(image)
     cv.imwrite('input_image/result.jpg', image)
     # image = rotate_bound(image, 30)
-    cv.imshow('binary', image)
-    cv.waitKey()
+    # cv.imshow('binary', image)
+    # cv.waitKey()
 
     horizon_images = get_horizon_stat(image)
     valid_images = []

@@ -33,6 +33,16 @@ class ImageEnhance(object):
         return img
 
     @classmethod
+    def add_random_erode(cls, img):
+        erode_num = np.random.randint(15, 25)
+        img = np.array(img)
+        for i in range(erode_num):
+            temp_x = np.random.randint(0, img.shape[0])
+            temp_y = np.random.randint(0, img.shape[1])
+            img[temp_x:temp_x+3, temp_y:temp_y+3] = 0
+        return img
+
+    @classmethod
     def add_dilate(cls, img):
         kernel = cv.getStructuringElement(cv.MORPH_RECT, (3, 3))
         img = cv.dilate(img, kernel)
@@ -49,6 +59,8 @@ class ImageEnhance(object):
                 ret_img = self.add_dilate(img)
             elif self.erode:
                 ret_img = self.add_erode(img)
+            if np.random.random() < 0.5:   # 局部腐蚀
+                ret_img = self.add_random_erode(ret_img)
             ret_img_list.append(self.add_noise(ret_img))
         print('Done')
         return ret_img_list
@@ -166,7 +178,7 @@ def main():
         all_char_list.extend(zip(optical_char_list, char_info_list))
     print('Shuffle ...')
     np.random.shuffle(all_char_list)
-    test_data_ratio = 0.1
+    test_data_ratio = 0.02
     test_data_length = int(len(all_char_list)*test_data_ratio)
 
     print('Total Length:', len(all_char_list))

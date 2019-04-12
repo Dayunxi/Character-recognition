@@ -19,14 +19,8 @@ def read_image(file):
 
 
 def binary_stat(image):
-    white = 0
-    black = 0
-    for row in image:
-        for pixel in row:
-            if pixel == 255:
-                white += 1
-            elif pixel == 0:
-                black += 1
+    hist = cv.calcHist([image], [0], None, [2], [0, 256])
+    black, white = np.array(np.resize(hist, 2), dtype=int)
     return white, black
 
 
@@ -35,10 +29,12 @@ def binary_image(image):
     # 原图黑字白底
     ret = cv.adaptiveThreshold(image, 255, cv.ADAPTIVE_THRESH_MEAN_C, cv.THRESH_BINARY, 31, 10)
     white_cnt, black_cnt = binary_stat(ret)
+    origin = image
     if white_cnt > black_cnt:
         print(white_cnt, black_cnt)
         ret = cv.bitwise_not(ret)
-    return ret
+        origin = cv.bitwise_not(image)
+    return ret, origin
 
 
 def binary_image_otsu(image):
@@ -61,16 +57,6 @@ def rotate_bound(image, degree):
     return canvas
 
 
-def add_noise(img, min_num=20, max_num=25):
-    noise_num = np.random.randint(min_num, max_num)
-    img = np.array(img)
-    for i in range(noise_num):    # 椒盐噪声
-        temp_x = np.random.randint(0, img.shape[0])
-        temp_y = np.random.randint(0, img.shape[1])
-        img[temp_x][temp_y] = 255
-    return img
-
-
 def add_erode(img, size=(2, 2)):
     kernel = cv.getStructuringElement(cv.MORPH_RECT, size)
     img = cv.erode(img, kernel)
@@ -90,10 +76,12 @@ def hough_transform(image):
 
     dil_image = add_dilate(image)  # 膨胀
     edges = cv.Canny(dil_image, 50, 150)  # 提取边缘
+    # cv.imshow('edges', edges)
 
     lines = cv.HoughLines(edges, 1, np.pi / 720, 100)
     all_valid_angles = []
-    display = np.array(image)
+    # display = np.array(image)
+    display = cv.cvtColor(image, cv.COLOR_GRAY2BGR)
     if lines is not None:
         # print(image.shape)
         for line in lines[:20]:  # 取可能性最大的二十条线
@@ -106,17 +94,20 @@ def hough_transform(image):
             y1 = int(y0 - 2000*np.cos(theta))
             x2 = int(x0 - 2000 * np.sin(theta))
             y2 = int(y0 + 2000 * np.cos(theta))
-            cv.line(display, (x2, y2), (x1, y1), 255)
+            cv.line(display, (x2, y2), (x1, y1), (255, 0, 0))
     inclined_angle = (np.pi / 2 - np.average(all_valid_angles)) * 180 / np.pi if len(all_valid_angles) else 0
     inclined_angle = np.around(inclined_angle, 1)  # 精确到0.1度
     print('inclined angle', inclined_angle)
+    # cv.imshow('display', display)
+
     if inclined_angle != 0:
         image = rotate_bound(image, inclined_angle)
-    return image
+
+    return image, inclined_angle
 
 
 # 垂直切割先水平腐蚀再竖直膨胀
-def get_vertical_split(image):
+def get_vertical_split(image, origin):
     open_image = add_erode(image, size=(2, 1))
     # cv.imshow('erode', open_image)
     # cv.waitKey()
@@ -125,11 +116,7 @@ def get_vertical_split(image):
     min_width = 3
     min_pixel = 1
     rows, cols = open_image.shape
-    stat = np.zeros(cols, dtype=int)
-    for i in range(rows):
-        for j in range(cols):
-            if open_image[i][j] == 255:
-                stat[j] += 1
+    stat = np.sum(open_image == 255, axis=0, dtype=int)
 
     height, width = image.shape
     crop_info_list = []
@@ -141,15 +128,14 @@ def get_vertical_split(image):
             is_begin = True
         elif is_begin and stat[i] < min_pixel:
             if i - start >= min_width:
-                cropped_info = (image[:, (start-1 if start else 0):i+1], start, i)  # 考虑到有腐蚀，左右多截一像素
-                if (i-start)/height < 0.9 and len(crop_info_list) > 1:
+                cropped_info = (origin[:, (start-1 if start else 0):i+1], start, i)  # 考虑到有腐蚀，左右多截一像素
+
+                if (i-start)/height < 0.9 and len(crop_info_list) > 0:
                     _, last_start, last_end = crop_info_list[-1]
-                    if (last_end-last_start)/height < 0.9 < (i-last_start)/height < 1.2:
-                        del crop_info_list[-1]
+                    if (last_end-last_start)/height < 0.9 and (i-last_start)/height < 1.2:
+                        crop_info_list.pop()
                         # 考虑到有腐蚀，左右多截一像素
-                        cropped_info = (image[:, (last_start-1 if last_start else 0):i+1], last_start, i)
-                        # cv.imshow('conjunction', cropped_info[0])
-                        # cv.waitKey()
+                        cropped_info = (origin[:, (last_start-1 if last_start else 0):i+1], last_start, i)
                 crop_info_list.append(cropped_info)
             is_begin = False
     col_split = [image[0] for image in crop_info_list]
@@ -157,29 +143,24 @@ def get_vertical_split(image):
 
 
 # 水平切割先竖直腐蚀再横向膨胀
-def get_horizon_split(image):
-    # image = add_noise(image, 1500, 2000)
-    # cv.imshow('origin', image)
-    # cv.waitKey()
+def get_horizon_split(image, origin):
     open_image = add_erode(image, size=(1, 2))
-    # cv.imshow('erode', image)
-    # cv.waitKey()
     open_image = add_dilate(open_image, size=(4, 2))
-    # cv.imshow('dilate', image)
-    # cv.waitKey()
 
     min_height = 12
     min_pixel = 1
     rows, cols = open_image.shape
-    stat = np.zeros(rows, dtype=int)
     print('statistic ...')
-    for i in range(rows):
-        for j in range(cols):
-            if open_image[i][j] == 255:
-                stat[i] += 1
+    stat = np.sum(open_image == 255, axis=1, dtype=int)
 
-    # plt.barh(range(rows), [d for d in reversed(stat)], height=1)
+    # labels = [num for num in range(rows, 1, -1)]
+    # plt.subplot(121)
+    # plt.imshow(np.array(image, dtype=np.uint8))
+    # plt.subplot(122)
+    # plt.barh(range(500), [d for d in reversed(stat[100:600])], height=1)
+    # plt.yticks([])
     # plt.show()
+    # exit()
 
     # 效果不太好 暂时仅考虑简单纯文本
     # print('drawing ...')
@@ -195,6 +176,7 @@ def get_horizon_split(image):
     # plt.show()
 
     row_split = []
+    origin_split = []
     is_begin = False
     for i in range(rows):
         if not is_begin and stat[i] >= min_pixel:
@@ -203,38 +185,14 @@ def get_horizon_split(image):
         elif is_begin and stat[i] < min_pixel:
             if i - start >= min_height:
                 row_split.append(image[start:i, :])
+                origin_split.append(origin[start:i, :])
             is_begin = False
-    return row_split
+    return row_split, origin_split
 
 
 def image_paste(target, source, box):
     left, upper, right, lower = box
     target[upper:lower, left:right] = source
-
-
-def save_combined_image(path, all_char_list, char_size=(64, 64), group_size=(16, 16)):
-    order = 1
-    curr_num = 0
-    total_row, total_col = group_size
-    width, height = char_size
-    max_num_per_group = total_col*total_row
-    total_group_num = np.ceil(len(all_char_list)/(total_row*total_col))
-    print('Total group num:', total_group_num)
-    container = np.zeros((total_row * height, total_col * width), dtype=np.uint8)
-    for image in all_char_list:
-        row = int(curr_num / total_col)
-        col = int(curr_num % total_col)
-        image_paste(container, image, (col*width, row*height, (col+1)*width, (row+1)*height))
-        curr_num += 1
-        if curr_num == max_num_per_group:
-            curr_num = 0
-            cv.imencode('.jpg', container)[1].tofile(path + 'images_{}.jpg'.format(order))
-            container = np.zeros((total_row * height, total_col * width), dtype=np.uint8)
-            order += 1
-            print('Saving: {:.2f}% ...'.format(order/total_group_num*100))
-    if curr_num < max_num_per_group:   # 最后一组
-        cv.imencode('.jpg', container)[1].tofile(path + 'images_{}.jpg'.format(order))
-    print('Save Done')
 
 
 def char_resize(image, size=(64, 64)):
@@ -261,56 +219,30 @@ def char_resize(image, size=(64, 64)):
 
 def get_predict_image(path, size=(64, 64)):
         image = read_image(path)
-        image = binary_image(image)
-        # image = hough_transform(image)
-        # cv.imshow('origin', image)
-        # cv.waitKey()
-        # image = add_erode(image, size=(2, 1))
-        # cv.imshow('erode', image)
-        # cv.waitKey()
-        # image = add_dilate(image, size=(2, 4))
-        # cv.imshow('dilate', image)
-        # cv.waitKey()
+        image, origin = binary_image(image)
+        image, inclined_angle = hough_transform(image)
+        if inclined_angle != 0:
+            origin = rotate_bound(origin, inclined_angle)
 
-        horizon_images = get_horizon_split(image)
+        horizon_images, origin_horizon = get_horizon_split(image, origin)
         # print(len(horizon_images))
         valid_images = []
-        for item in horizon_images:
-            images = get_vertical_split(item)
+        for row_image, origin in zip(horizon_images, origin_horizon):
+            images = get_vertical_split(row_image, origin)
             valid_images.extend(images)
         regularized_image = []
         for image in valid_images:
+            # cv.imshow('test', image)
+            # cv.waitKey()
             character = char_resize(image, size=size)
-            character = np.array(binary_image_otsu(character), dtype=np.float32)/255
+            character = np.array((character), dtype=np.float32)/255
             regularized_image.append(character)
         return regularized_image
 
 
 def main():
+    batch = get_predict_image("input_image/test16.jpg")
     exit()
-    image = read_image("input_image/test0.jpg")
-    image = binary_image(image)
-    image = hough_transform(image)
-    cv.imwrite('input_image/result.jpg', image)
-    # image = rotate_bound(image, 30)
-    # cv.imshow('binary', image)
-    # cv.waitKey()
-
-    horizon_images = get_horizon_split(image)
-    print(len(horizon_images))
-    valid_images = []
-    for item in horizon_images:
-        images = get_vertical_split(item)
-        valid_images.extend(images)
-    # print(valid_images)
-    image_list = []
-    for image in valid_images:
-        height, width = image.shape
-        print(image.shape, width/height)
-        # image = cv.resize(image, (64, 64))
-        # image_list.append(image)
-        cv.imshow('show', image)
-        cv.waitKey()
     # save_combined_image('train_data/data_test/', image_list, char_size=(64, 64), group_size=(16, 16))
 
 

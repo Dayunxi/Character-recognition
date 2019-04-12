@@ -157,21 +157,34 @@ def punctuation2image(font_style, gb_list, char_size=(64, 64)):
         image.paste(0, (0, 0, width, height))  # erase
         font_w, font_h = font.getsize(char)
         max_v = max(font_w, font_h)
-        font_image = None
+
+        font_image = Image.new('L', (font_w, font_h), 0)
+        font_draw = ImageDraw.Draw(font_image)
+        font_draw.text((0, 0), char, font=font, fill=255)
         if max_v > char_size[0]:
-            font_image = Image.new('L', (font_w, font_h), 0)
-            font_draw = ImageDraw.Draw(font_image)
-            font_draw.text((0, 0), char, font=font, fill=255)
             font_image = font_image.resize((int(font_w * width / max_v), int(font_h * height / max_v)), Image.BILINEAR)
             font_w, font_h = font_image.size
+
+        # 提取左右边界
+        col_sum = np.sum(np.array(font_image, dtype=np.uint8) > 0, axis=0)
+        left = 0
+        right = font_w
+        for i in range(1, font_w - 1):
+            if col_sum[i] > 0 and col_sum[i - 1] == 0:
+                left = i
+            if col_sum[i] > 0 and col_sum[i + 1] == 0:
+                right = i + 1
+                break
+        font_image = font_image.crop((left, 0, right, font_h))
+        font_w, font_h = font_image.size
+
         left = int((width-font_w)/2)
         upper = int((height-font_h)/2)
         if font_image is None:
             draw.text((left, upper), char, font=font, fill=255)
         else:
             image.paste(font_image, (left, upper))
-            # cv.imshow('punc', np.array(image, dtype=np.uint8))
-            # cv.waitKey()
+
         optical_punc_list.append(np.array(image))
         punc_info_list.append(char)
     return optical_punc_list, punc_info_list
@@ -242,7 +255,9 @@ def main():
         all_char_list.extend(zip(optical_char_list, char_info_list))
 
         optical_punc_list, punc_info_list = punctuation2image(style, gb_punc_list, char_size=(64, 64))
-        enhance1 = ImageEnhance(erode=False).enhance(optical_punc_list)     # 由于没有旋转，多扩大一倍
+        optical_punc_list *= 5          # 由于没有旋转，扩大5倍
+        punc_info_list *= 5
+        enhance1 = ImageEnhance(erode=False).enhance(optical_punc_list)
         enhance2 = ImageEnhance(erode=False).enhance(optical_punc_list)
         optical_punc_list.extend(enhance1 + enhance2)
         punc_info_list *= 3

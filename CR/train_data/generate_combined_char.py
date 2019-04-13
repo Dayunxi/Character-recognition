@@ -2,8 +2,8 @@ from PIL import Image, ImageFont, ImageDraw
 import cv2 as cv
 import numpy as np
 import time
+import copy
 
-import os
 import sys
 sys.path.append('../')
 import get_integrate
@@ -19,77 +19,59 @@ class ImageEnhance(object):
     @classmethod
     def add_noise(cls, img):
         noise_num = np.random.randint(3, 25)
-        img = np.array(img)
+        height, width = img.shape
         for i in range(noise_num):    # 椒盐噪声
-            temp_x = np.random.randint(0, img.shape[0])
-            temp_y = np.random.randint(0, img.shape[1])
+            temp_x = np.random.randint(0, height)
+            temp_y = np.random.randint(0, width)
             img[temp_x][temp_y] = 255
-        return img
 
     @classmethod
-    def add_erode(cls, img):
-        kernel = cv.getStructuringElement(cv.MORPH_RECT, (3, 3))
+    def get_erode(cls, img):
+        kernel = cv.getStructuringElement(cv.MORPH_RECT, (2, 2))
         img = cv.erode(img, kernel)
         return img
 
     @classmethod
     def add_random_erode(cls, img):
         erode_num = np.random.randint(15, 25)
-        img = np.array(img)
+        height, width = img.shape
         for i in range(erode_num):
-            temp_x = np.random.randint(0, img.shape[0])
-            temp_y = np.random.randint(0, img.shape[1])
+            temp_x = np.random.randint(0, height)
+            temp_y = np.random.randint(0, width)
             img[temp_x:temp_x+3, temp_y:temp_y+3] = 0
-        return img
 
     @classmethod
-    def add_dilate(cls, img):
+    def get_dilate(cls, img):
         kernel = cv.getStructuringElement(cv.MORPH_RECT, (3, 3))
         img = cv.dilate(img, kernel)
         return img
 
     @classmethod
-    def add_gaussian(cls, img):
+    def get_gaussian(cls, img):
         bg = np.random.normal(20, 5, img.shape)
-        ret_img = bg + img
-        ret_img[ret_img < 0] = 0
-        ret_img[ret_img > 255] = 255
-        return np.asarray(ret_img, dtype=np.uint8)
+        img = img + bg
+        img[img < 0] = 0
+        img[img > 255] = 255
+        return img
 
     def enhance(self, img_list):
         print('Enhancing ...')
-        ret_img_list = []
-        for img in img_list:
-            ret_img = img
+        ret_img_list = copy.deepcopy(img_list)
+        length = len(ret_img_list)
+        for i in range(length):
             if np.random.random() < 0.3:
                 pass
             elif self.dilate and np.random.random() < 0.5:
-                ret_img = self.add_dilate(img)
+                ret_img_list[i] = self.get_dilate(ret_img_list[i])
             elif self.erode:
-                ret_img = self.add_erode(img)
+                ret_img_list[i] = self.get_erode(ret_img_list[i])
             if np.random.random() < 0.5:   # 局部腐蚀
-                ret_img = self.add_random_erode(ret_img)
+                self.add_random_erode(ret_img_list[i])
             if np.random.random() < 0.8:   # 高斯噪声
-                ret_img = self.add_gaussian(ret_img)
-            ret_img_list.append(self.add_noise(ret_img))
+                ret_img_list[i] = self.get_gaussian(ret_img_list[i])
+            self.add_noise(ret_img_list[i])  # 一定有随机白点
         print('Done')
         return ret_img_list
-
-
-# def char_resize(char_image, max_width, max_height):
-#     canvas = Image.new('L', (max_width, max_height), 0)
-#     width, height = char_image.size
-#     print(char_image.size)
-#     height = int(max_width / width * height)
-#     optical_char = char_image.resize((max_width, height), Image.BILINEAR)
-#     if height > max_height:
-#         width = int(max_height / height * width)
-#         print(width, max_height)
-#         optical_char = char_image.resize((width, max_height), Image.BILINEAR)
-#
-#     width, height = optical_char.size
-#     canvas.paste(optical_char, (int((max_width - width) / 2), int((max_height - height) / 2)))
-#     return canvas
 
 
 def char_resize(char_image, max_width, max_height):
@@ -106,19 +88,16 @@ def char_resize(char_image, max_width, max_height):
     return canvas
 
 
-def font2image(font_style, gb_list, char_size=(64, 64), max_angle=30, angle_step=2):
+def font2image(font_style, gb_list, char_size=(64, 64), max_angle=30, angle_step=3):
     width, height = char_size
     font_size = int((width+height)/2)
-    canvas_width = int(1.5*width)       # 大一点避免旋转后被动裁剪
-    canvas_height = int(1.5*height)
+    # canvas_width = int(1.5*width)       # 大一点避免旋转后被动裁剪
+    # canvas_height = int(1.5*height)
 
-    image = Image.new('L', (canvas_width, canvas_height), 0)  # L=gray RGB=rgb
+    image = Image.new('L', char_size, 0)  # L=gray RGB=rgb
     # 创建Font对象:
     font = ImageFont.truetype('font/' + font_style, font_size)
-    # 创建Draw对象:
-    draw = ImageDraw.Draw(image)
 
-    # 输出文字:
     optical_char_list = []
     char_info_list = []
     num_per_angle, amount = get_integrate.get_distribution(max_angle, angle_step, scale=20)
@@ -126,16 +105,26 @@ def font2image(font_style, gb_list, char_size=(64, 64), max_angle=30, angle_step
     for char, code in gb_list:
         if code % 100 == 0:
             print('[+]Font2image: ' + str(code/len(gb_list)*100) + '% ...')
-        image.paste(0, (0, 0, canvas_width, canvas_height))  # erase
-        draw.text((int((canvas_width-width)/2), int((canvas_height-height)/2)), char, font=font, fill=255)
+        image.paste(0, (0, 0, width, height))  # erase
+        font_w, font_h = font.getsize(char)
+        max_v = max(font_w, font_h)
+
+        font_image = Image.new('L', (font_w, font_h), 0)
+        font_draw = ImageDraw.Draw(font_image)
+        font_draw.text((0, 0), char, font=font, fill=255)
+        if max_v > char_size[0]:
+            font_image = font_image.resize((int(font_w * width / max_v), int(font_h * height / max_v)), Image.BILINEAR)
+            font_w, font_h = font_image.size
+
+        left = int((width - font_w) / 2)
+        upper = int((height - font_h) / 2)
+        image.paste(font_image, (left, upper))  # 粘贴至容器中央
+
         for i, angle in enumerate(range(-max_angle, max_angle+1, angle_step)):
-            optical_char = image.rotate(angle, Image.BILINEAR)   # linear interpolation
-            box = optical_char.getbbox()
-            optical_char = optical_char.crop(box)
-            optical_char = char_resize(optical_char, width, height)
-            # optical_char = optical_char.resize((width, height), Image.ANTIALIAS)  # 对‘一’resize 效果不理想
+            # 由于步长为3度，过于倾斜的训练集较少，被裁剪也影响不大
+            rotated_char = image.rotate(angle, Image.BILINEAR)
             for _ in range(num_per_angle[i]):
-                optical_char_list.append(np.array(optical_char))
+                optical_char_list.append(np.array(rotated_char, dtype=np.uint8))
                 char_info_list.append(char)
     return optical_char_list, char_info_list
 
@@ -148,8 +137,7 @@ def punctuation2image(font_style, gb_list, char_size=(64, 64)):
     # 创建Font对象:
     font = ImageFont.truetype('font/' + font_style, font_size)
     # 创建Draw对象:
-    draw = ImageDraw.Draw(image)
-    # 输出文字:
+    # draw = ImageDraw.Draw(image)
     optical_punc_list = []
     punc_info_list = []
     print('[+]Punctuation2image ...')
@@ -180,10 +168,10 @@ def punctuation2image(font_style, gb_list, char_size=(64, 64)):
 
         left = int((width-font_w)/2)
         upper = int((height-font_h)/2)
-        if font_image is None:
-            draw.text((left, upper), char, font=font, fill=255)
-        else:
-            image.paste(font_image, (left, upper))
+        # if font_image is None:
+        #     draw.text((left, upper), char, font=font, fill=255)
+        # else:
+        image.paste(font_image, (left, upper))
 
         optical_punc_list.append(np.array(image))
         punc_info_list.append(char)
@@ -255,8 +243,8 @@ def main():
         all_char_list.extend(zip(optical_char_list, char_info_list))
 
         optical_punc_list, punc_info_list = punctuation2image(style, gb_punc_list, char_size=(64, 64))
-        optical_punc_list *= 5          # 由于没有旋转，扩大5倍
-        punc_info_list *= 5
+        optical_punc_list *= 6          # 由于没有旋转，扩大6倍
+        punc_info_list *= 6
         enhance1 = ImageEnhance(erode=False).enhance(optical_punc_list)
         enhance2 = ImageEnhance(erode=False).enhance(optical_punc_list)
         optical_punc_list.extend(enhance1 + enhance2)
@@ -265,7 +253,7 @@ def main():
 
     print('Shuffle ...')
     np.random.shuffle(all_char_list)
-    test_data_ratio = 0.02
+    test_data_ratio = 0.05
     test_data_length = int(len(all_char_list)*test_data_ratio)
 
     print('Total Length:', len(all_char_list))

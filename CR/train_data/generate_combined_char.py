@@ -65,7 +65,7 @@ class ImageEnhance(object):
                 ret_img_list[i] = self.get_dilate(ret_img_list[i])
             elif self.erode:
                 ret_img_list[i] = self.get_erode(ret_img_list[i])
-            if np.random.random() < 0.5:   # 局部腐蚀
+            if np.random.random() < 0.5:   # 椒盐局部腐蚀
                 self.add_random_erode(ret_img_list[i])
             if np.random.random() < 0.8:   # 高斯噪声
                 ret_img_list[i] = self.get_gaussian(ret_img_list[i])
@@ -74,18 +74,14 @@ class ImageEnhance(object):
         return ret_img_list
 
 
-def char_resize(char_image, max_width, max_height):
-    canvas = Image.new('L', (max_width, max_height), 0)
-    width, height = char_image.size
-
-    if width < height:
-        optical_char = char_image.resize((int(width*max_height/height), max_height), Image.BILINEAR)
+def image_zoom_out(pil_image, char_size):
+    max_width, max_height = char_size
+    width, height = pil_image.size
+    if width > max_width or height > max_height:
+        zoom_scale = min(max_height / height, max_width / width)
+        return pil_image.resize((int(width * zoom_scale), int(height * zoom_scale)), Image.BILINEAR)
     else:
-        optical_char = char_image.resize((max_width, int(height * max_width / width)), Image.BILINEAR)
-
-    width, height = optical_char.size
-    canvas.paste(optical_char, (int((max_width - width) / 2), int((max_height - height) / 2)))
-    return canvas
+        return pil_image
 
 
 def font2image(font_style, gb_list, char_size=(64, 64), max_angle=30, angle_step=3):
@@ -107,24 +103,24 @@ def font2image(font_style, gb_list, char_size=(64, 64), max_angle=30, angle_step
         if i % 100 == 0:
             print('[+]Font2image: {:.2f}% ...'.format(i/len(gb_list)*100))
         image.paste(0, (0, 0, width, height))  # erase
-        font_w, font_h = font.getsize(char)
-        max_v = max(font_w, font_h)
+        # font_w, font_h = font.getsize(char)
 
-        font_image = Image.new('L', (font_w, font_h), 0)
+        font_image = Image.new('L', font.getsize(char), 0)
         font_draw = ImageDraw.Draw(font_image)
         font_draw.text((0, 0), char, font=font, fill=255)
-        if max_v > char_size[0]:
-            font_image = font_image.resize((int(font_w * width / max_v), int(font_h * height / max_v)), Image.BILINEAR)
-            font_w, font_h = font_image.size
 
-        left = int((width - font_w) / 2)
-        upper = int((height - font_h) / 2)
+        # 如果超出最大宽高，需缩小
+        font_image = image_zoom_out(font_image, char_size)
+        font_w, font_h = font_image.size
+
+        left = (width - font_w) // 2
+        upper = (height - font_h) // 2
         image.paste(font_image, (left, upper))  # 粘贴至容器中央
 
-        for i, angle in enumerate(range(-max_angle, max_angle+1, angle_step)):
+        for j, angle in enumerate(range(-max_angle, max_angle+1, angle_step)):
             # 由于步长为3度，过于倾斜的训练集较少，被裁剪也影响不大
             rotated_char = image.rotate(angle, Image.BILINEAR)
-            for _ in range(num_per_angle[i]):
+            for _ in range(num_per_angle[j]):
                 optical_char_list.append(np.array(rotated_char))
                 char_info_list.append(char)
     return optical_char_list, char_info_list
@@ -139,7 +135,6 @@ def alpha2image(font_style, gb_list, char_size=(64, 64)):
     # canvas_height = int(1.5*height)
 
     image = Image.new('L', char_size, 0)  # L=gray RGB=rgb
-    # 创建Font对象:
     font = ImageFont.truetype('font/' + font_style, font_size)
 
     optical_char_list = []
@@ -148,27 +143,23 @@ def alpha2image(font_style, gb_list, char_size=(64, 64)):
     gb_list = [char for char, _ in gb_list]
     for i, char in enumerate(gb_list):
         if i % 10 == 0:
-            print('[+]Font2image: {:.2f}% ...'.format(i/len(gb_list)*100))
+            print('[+]Alphabet2image: {:.2f}% ...'.format(i/len(gb_list)*100))
         image.paste(0, (0, 0, width, height))  # erase
-        font_w, font_h = font.getsize(char)
-        max_v = max(font_w, font_h)
 
-        font_image = Image.new('L', (font_w, font_h), 0)
+        font_image = Image.new('L', font.getsize(char), 0)
         font_draw = ImageDraw.Draw(font_image)
         font_draw.text((0, 0), char, font=font, fill=255)
-        if max_v > char_size[0]:
-            font_image = font_image.resize((int(font_w * width / max_v), int(font_h * height / max_v)), Image.BILINEAR)
-            font_w, font_h = font_image.size
 
-        left = int((width - font_w) / 2)
-        upper = int((height - font_h) / 2)
+        # 如果超出最大宽高，需缩小
+        font_image = image_zoom_out(font_image, char_size)
+        font_w, font_h = font_image.size
+
+        left = (width - font_w) // 2
+        upper = (height - font_h) // 2
         image.paste(font_image, (left, upper))  # 粘贴至容器中央
 
         extend_images = alpha_extend(image, char_size)
         for item in extend_images:
-            # if char == 'I':
-            #     cv.imshow('extend', item)
-            #     cv.waitKey()
             optical_char_list.append(item)
             char_info_list.append(char)
     return optical_char_list, char_info_list
@@ -179,46 +170,40 @@ def punctuation2image(font_style, gb_list, char_size=(64, 64)):
     font_size = int((width+height)/2)
 
     image = Image.new('L', char_size, 0)  # L=gray RGB=rgb
-    # 创建Font对象:
     font = ImageFont.truetype('font/' + font_style, font_size)
-    # 创建Draw对象:
-    # draw = ImageDraw.Draw(image)
+
     optical_punc_list = []
     punc_info_list = []
     print('[+]Punctuation2image ...')
     gb_list = [char for char, _ in gb_list]
     for i, char in enumerate(gb_list):
         if i % 5 == 0:
-            print('[+]Font2image: {:.2f}% ...'.format(i/len(gb_list)*100))
+            print('[+]Punctuation2image: {:.2f}% ...'.format(i/len(gb_list)*100))
         image.paste(0, (0, 0, width, height))  # erase
-        font_w, font_h = font.getsize(char)
-        max_v = max(font_w, font_h)
 
-        font_image = Image.new('L', (font_w, font_h), 0)
+        font_image = Image.new('L', font.getsize(char), 0)
         font_draw = ImageDraw.Draw(font_image)
         font_draw.text((0, 0), char, font=font, fill=255)
-        if max_v > char_size[0]:
-            font_image = font_image.resize((int(font_w * width / max_v), int(font_h * height / max_v)), Image.BILINEAR)
-            font_w, font_h = font_image.size
 
-        # 提取左右边界
+        # 如果超出最大宽高，需缩小
+        font_image = image_zoom_out(font_image, char_size)
+        font_w, font_h = font_image.size
+
+        # 由于生成的标点符号左右留白较多，目标区域不在中间，需要提取左右边界，但保留上下留白的信息
         col_sum = np.sum(np.array(font_image, dtype=np.uint8) > 0, axis=0)
         left = 0
         right = font_w
-        for i in range(1, font_w - 1):
-            if col_sum[i] > 0 and col_sum[i - 1] == 0:
-                left = i
-            if col_sum[i] > 0 and col_sum[i + 1] == 0:
-                right = i + 1
+        for j in range(1, font_w - 1):
+            if col_sum[j] > 0 and col_sum[j - 1] == 0:
+                left = j
+            if col_sum[j] > 0 and col_sum[j + 1] == 0:
+                right = j + 1
                 break
         font_image = font_image.crop((left, 0, right, font_h))
         font_w, font_h = font_image.size
 
-        left = int((width-font_w)/2)
-        upper = int((height-font_h)/2)
-        # if font_image is None:
-        #     draw.text((left, upper), char, font=font, fill=255)
-        # else:
+        left = (width-font_w)//2
+        upper = (height-font_h)//2
         image.paste(font_image, (left, upper))
 
         optical_punc_list.append(np.array(image))
@@ -227,36 +212,36 @@ def punctuation2image(font_style, gb_list, char_size=(64, 64)):
 
 
 # 九次位移，一次膨胀，一张原图
-def alpha_extend(image, char_size):
-    box = image.getbbox()
-    pure_image = image.crop(box)
-    # pure_image.show()
+def alpha_extend(pil_image, char_size):
+    box = pil_image.getbbox()
+    pure_image = pil_image.crop(box)
     width, height = pure_image.size
     w, h = char_size
-    # print('size', pure_image.size)
 
-    canvas = np.zeros(char_size, dtype=np.uint8)
+    canvas = np.zeros(char_size)
+    # 调用函数前确保图片的宽高不超过char_size
+    # 放大图片
     if height > width:
         new_w = width*h//height
         expand_image = pure_image.resize((new_w, h))
         bias = (w-new_w)//2
-        canvas[:, bias:bias+new_w] = np.array(expand_image, dtype=np.uint8)
+        canvas[:, bias:bias+new_w] = np.array(expand_image)
     else:
         new_h = height*w//width
         expand_image = pure_image.resize((w, new_h))
         bias = (h - new_h) // 2
-        canvas[bias:bias+new_h, :] = np.array(expand_image, dtype=np.uint8)
+        canvas[bias:bias+new_h, :] = np.array(expand_image)
 
-    extend_ret = [np.array(image, dtype=np.uint8), canvas]
+    extend_ret = [np.array(pil_image), canvas]
 
-    scale = 16
+    scale = 16  # 越大离边界的间隔越小
     xy_list = [(w//scale, h//scale), ((w-width)//2, h//scale), ((scale-1)*w//scale - width, h//scale),
                (w//scale, (h-height)//2), ((w-width)//2, (h-height)//2), ((scale-1)*w//scale - width, (h-height)//2),
                (w//scale, (scale-1)*h//scale - height), ((w-width)//2, (scale-1)*h//scale - height), ((scale-1)*w//scale - width, (scale-1)*h//scale - height)]
     for xy in xy_list:
         x, y = xy
         # print(xy)
-        canvas = np.zeros(char_size, dtype=np.uint8)
+        canvas = np.zeros(char_size)
         temp = pure_image
         if x < 0:
             x = w-width
@@ -267,18 +252,13 @@ def alpha_extend(image, char_size):
         if x + width >= w:
             temp = pure_image.resize((w-x, height*(w-x)//width))
         width, height = temp.size
-        canvas[y:y+height, x:x+width] = np.array(temp, dtype=np.uint8)
+        canvas[y:y+height, x:x+width] = np.array(temp)
         extend_ret.append(canvas)
 
     return extend_ret
 
 
-def image_paste(target, source, box):
-    left, upper, right, lower = box
-    target[upper:lower, left:right] = source
-
-
-# 共72*2*13*3355张图片 分为N张256*256的图片集以及一张剩余的图片集 以减少IO消耗
+# 分为N张256*256的图片集以及一张剩余的图片集 以减少IO消耗
 def save_combined_image(path, all_char_list, char_size=(64, 64), group_size=(256, 256)):
     order = 1
     curr_num = 0
@@ -292,7 +272,9 @@ def save_combined_image(path, all_char_list, char_size=(64, 64), group_size=(256
     for image, label in all_char_list:
         row = int(curr_num / total_col)
         col = int(curr_num % total_col)
-        image_paste(container, image, (col*width, row*height, (col+1)*width, (row+1)*height))
+        left, upper, right, lower = (col*width, row*height, (col+1)*width, (row+1)*height)
+        container[upper:lower, left:right] = image  # paste
+        # image_paste(container, image, (col*width, row*height, (col+1)*width, (row+1)*height))
         label_group.append(label)
         curr_num += 1
         if curr_num == max_num_per_group:
@@ -333,13 +315,16 @@ def main():
     all_char_list = []
     for i, style in enumerate(font_style_list):
         print(style, '{}/{}'.format(i+1, len(font_style_list)))
+        # 生成汉字图片
         optical_char_list, char_info_list = font2image(style, gb_char_list, char_size=(64, 64), angle_step=3)
         optical_char_list.extend(ImageEnhance().enhance(optical_char_list))
         char_info_list *= 2
         all_char_list.extend(zip(optical_char_list, char_info_list))
 
+        # 生成数字和字母图片
         optical_alpha_list, alpha_info_list = alpha2image(style, gb_alpha_list, char_size=(64, 64))
-        optical_alpha_list *= 3  # 已扩大11倍，再扩大3倍
+        for _ in range(3):      # 已扩大11倍，再扩大3倍
+            optical_alpha_list = copy.deepcopy(optical_alpha_list)
         alpha_info_list *= 3
         enhance1 = ImageEnhance(erode=False).enhance(optical_alpha_list)
         enhance2 = ImageEnhance(erode=False).enhance(optical_alpha_list)
@@ -347,8 +332,10 @@ def main():
         alpha_info_list *= 3
         all_char_list.extend(zip(optical_alpha_list, alpha_info_list))
 
+        # 生成标点图片
         optical_punc_list, punc_info_list = punctuation2image(style, gb_punc_list, char_size=(64, 64))
-        optical_punc_list *= 6          # 由于没有旋转，扩大6倍
+        for _ in range(6):  # 由于没有旋转，扩大6倍
+            optical_punc_list.extend(copy.deepcopy(optical_punc_list))
         punc_info_list *= 6
         enhance1 = ImageEnhance(erode=False).enhance(optical_punc_list)
         enhance2 = ImageEnhance(erode=False).enhance(optical_punc_list)

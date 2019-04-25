@@ -14,8 +14,8 @@ import time
 FLAGS = None
 WIDTH = 64
 HEIGHT = 64
-CHAR_NUM = 3755
-TOTAL_NUM = int(CHAR_NUM*13*72*2*0.9)
+CHAR_NUM = 3859
+TOTAL_NUM = 3120574
 BATCH_SIZE = 128
 GROUP_SIZE = (256, 256)
 ALPHA = 0.00158
@@ -25,15 +25,7 @@ SAVE_STEP = 10000
 
 
 def deepnn(x):
-    """deepnn builds the graph for a deep net for classifying digits.
-    Args:
-      x: an input tensor with the dimensions (N_examples, 784), where 784 is the
-      number of pixels in a standard MNIST image.
-    Returns:
-      A tuple (y, keep_prob). y is a tensor of shape (N_examples, 10), with values
-      equal to the logits of classifying the digit into one of 10 classes (the
-      digits 0-9). keep_prob is a scalar placeholder for the probability of
-      dropout.
+    """构建网络结构
     """
 
     weights = {
@@ -55,56 +47,55 @@ def deepnn(x):
         'b_fc2': bias_variable([CHAR_NUM])
     }
 
-    # Reshape to use within a convolutional neural net.
-    # Last dimension is for "features" - there is only one here, since images are
-    # grayscale -- it would be 3 for an RGB image, 4 for RGBA, etc.
+    # 调整输入为四维矩阵
     with tf.name_scope('reshape'):
         x_image = tf.reshape(x, [-1, HEIGHT, WIDTH, 1])
 
-    # First convolutional layer - maps one grayscale image to 32 feature maps.
+    # 第一层卷积，将灰度图映射为64个特征图
     with tf.name_scope('conv1'):
         h_conv1 = tf.nn.relu(conv2d(x_image, weights['W_conv1']) + biases['b_conv1'])
 
-    # Pooling layer - downsamples by 2X.
+    # 第一层池化，缩小两倍
     with tf.name_scope('pool1'):
         h_pool1 = max_pool_2x2(h_conv1)
 
-    # Second convolutional layer -- maps 32 feature maps to 64.
+    # 第二次卷积，64个特征图映射为128个特征图
     with tf.name_scope('conv2'):
         h_conv2 = tf.nn.relu(conv2d(h_pool1, weights['W_conv2']) + biases['b_conv2'])
 
-    # Second pooling layer.
+    # 第二层池化，缩小两倍
     with tf.name_scope('pool2'):
         h_pool2 = max_pool_2x2(h_conv2)
 
+    # 第三次卷积，128个特征图映射为256个特征图
     with tf.name_scope('conv3'):
         h_conv3 = tf.nn.relu(conv2d(h_pool2, weights['W_conv3']) + biases['b_conv3'])
 
+    # 第三层池化，缩小两倍
     with tf.name_scope('pool3'):
         h_pool3 = max_pool_2x2(h_conv3)
-
+    # 第四次卷积，256个特征图映射为512个特征图
     with tf.name_scope('conv4'):
         h_conv4 = tf.nn.relu(conv2d(h_pool3, weights['W_conv4']) + biases['b_conv4'])
-
+    # 第五次卷积，512个特征图映射为512个特征图
     with tf.name_scope('conv5'):
         h_conv5 = tf.nn.relu(conv2d(h_conv4, weights['W_conv5']) + biases['b_conv5'])
 
+    # 第四层池化，缩小两倍
     with tf.name_scope('pool4'):
         h_pool4 = max_pool_2x2(h_conv5)
 
-    # Fully connected layer 1 -- after 2 round of downsampling, our 28x28 image
-    # is down to 7x7x64 feature maps -- maps this to 1024 features.
+    # 经过四次降采样，图片由64x64变为4x4
     with tf.name_scope('fc1'):
         h_pool4_flat = tf.reshape(h_pool4, [-1, 4 * 4 * 512])
         h_fc1 = tf.nn.relu(tf.matmul(h_pool4_flat, weights['W_fc1']) + biases['b_fc1'])
 
-    # Dropout - controls the complexity of the model, prevents co-adaptation of
-    # features.
+    # 在第一层全连接使用dropout防止过拟合
     with tf.name_scope('dropout'):
         keep_prob = tf.placeholder(tf.float32)
         h_fc1_drop = tf.nn.dropout(h_fc1, keep_prob)
 
-    # Map the 1024 features to 10 classes, one for each digit
+    # 将2048个特征值映射为3859个类别
     with tf.name_scope('fc2'):
         y_conv = tf.matmul(h_fc1_drop, weights['W_fc2']) + biases['b_fc2']
     return y_conv, keep_prob
@@ -136,19 +127,16 @@ def bias_variable(shape):
 def main():
     time_begin = time.time()
 
-    # Create the model
     x = tf.placeholder(tf.float32, [None, HEIGHT, WIDTH])
 
-    # Define loss and optimizer
     y_ = tf.placeholder(tf.float32, [None, CHAR_NUM])
 
     # Build the graph for the deep net
     y_conv, keep_prob = deepnn(x)
 
     with tf.name_scope('loss'):
-        cross_entropy = tf.nn.softmax_cross_entropy_with_logits(labels=y_,
-                                                                logits=y_conv)
-    cross_entropy = tf.reduce_mean(cross_entropy)
+        cross_entropy = tf.nn.softmax_cross_entropy_with_logits(labels=y_, logits=y_conv)
+        cross_entropy = tf.reduce_mean(cross_entropy)
 
     with tf.name_scope('adam_optimizer'):
         train_step = tf.train.AdamOptimizer(ALPHA).minimize(cross_entropy)
@@ -171,9 +159,9 @@ def main():
     with tf.Session() as sess:
         saver = tf.train.Saver()
         sess.run(tf.global_variables_initializer())
-        batch_size = BATCH_SIZE
+
         path_train = 'train_data/data_train/'
-        batch_gen = load_train_data.get_batch(path_train, batch_size, total_num=TOTAL_NUM, one_hot_length=CHAR_NUM,
+        batch_gen = load_train_data.get_batch(path_train, BATCH_SIZE, total_num=TOTAL_NUM, one_hot_length=CHAR_NUM,
                                               char_size=(WIDTH, HEIGHT), group_size=GROUP_SIZE)
         curr_step = 1
         try:
@@ -191,7 +179,7 @@ def main():
                 if curr_step % SAVE_STEP == 0:
                     saver.save(sess, 'model/ocr-model', global_step=curr_step)
                 curr_step += 1
-        except StopIteration:
+        except StopIteration:  # 读取所有训练集后保存模型
             save_acc_loss(accuracy_list, loss_list)
             saver.save(sess, 'model/ocr-model', global_step=curr_step)
         except KeyboardInterrupt:

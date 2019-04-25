@@ -10,16 +10,12 @@ FLAGS = None
 WIDTH = 64
 HEIGHT = 64
 CHAR_NUM = 3859
-TOTAL_NUM = 65532   # int(((CHAR_NUM-42)*13*33*2 + 42*13*3)*0.98)
+TOTAL_NUM = 256*256  # int(((CHAR_NUM-42)*13*33*2 + 42*13*3)*0.98)
 BATCH_SIZE = 128
 GROUP_SIZE = (256, 256)
 ALPHA = 0.00158
 STDDEV = 0.085
-INFO_STEP = 10
-SAVE_STEP = 10000
-
-label_id = {}
-id_label = {}
+INFO_STEP = 1
 
 
 def deepnn(top_k):
@@ -133,7 +129,7 @@ def bias_variable(shape):
 def test():
 
     y_ = tf.placeholder(tf.float32, [None, CHAR_NUM])
-    graph = deepnn(3)
+    graph = deepnn(top_k=5)
 
     correct_prediction = tf.equal(tf.argmax(graph['y_conv'], 1), tf.argmax(y_, axis=1))
     correct_prediction = tf.cast(correct_prediction, tf.float32)
@@ -150,7 +146,7 @@ def test():
 
         saver = tf.train.Saver()
         print('Loading model')
-        ckpt_path = 'model/ocr-model-25138'
+        ckpt_path = 'model/ocr-model-24168'
         saver.restore(sess, ckpt_path)
         print('Load Done')
 
@@ -189,11 +185,6 @@ def save_acc_loss(acc, loss):
 
 
 def main():
-    # gb_list = get_chinese.get_primary_gb()
-    # global label_id, id_label
-    # for char, gb_id in gb_list:
-    #     label_id[char] = gb_id
-    #     id_label[gb_id] = char
     test()
 
 

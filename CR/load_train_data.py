@@ -68,7 +68,7 @@ def load_image_group(path, order, char_size=(64, 64), group_size=(128, 128)):
     _, total_col = group_size
     width, height = char_size
 
-    grouped_image = binary_image(np.array(cv.imread(path + 'images_{}.jpg'.format(order), cv.IMREAD_GRAYSCALE)))
+    grouped_image = np.array(cv.imread(path + 'images_{}.jpg'.format(order), cv.IMREAD_GRAYSCALE))
     images = []
     labels = []
     with open(path + 'labels_{}.txt'.format(order), 'rt', encoding='utf8') as file:
@@ -95,12 +95,9 @@ def get_one_hot(arr, dim):
 # 二值化
 def binary_image(image):
     # 原图黑字白底
-    threshold, ret = cv.threshold(image, 0, 255, cv.THRESH_OTSU)
-    # for row in ret:
-    #     print(row)
-    # cv.imshow('kkp', ret)
-    # cv.waitKey()
-    return ret
+    return image
+    # threshold, ret = cv.threshold(image, 0, 255, cv.THRESH_OTSU)
+    # return ret
 
 
 def main():

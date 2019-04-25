@@ -291,7 +291,8 @@ def save_combined_image(path, all_char_list, char_size=(64, 64), group_size=(256
 
 def save_image_and_label(path, image, label, order, group_size=(128, 128)):
     total_row, total_col = group_size
-    cv.imencode('.jpg', image)[1].tofile(path + 'images_{}.jpg'.format(order))
+    # cv.imencode('.jpg', image)[1].tofile(path + 'images_{}.jpg'.format(order))  # 中文文件名
+    cv.imwrite(path + 'images_{}.jpg'.format(order), image)
     with open(path + 'labels_{}.txt'.format(order), 'wt', encoding='utf8') as file:
         for i in range(total_row):
             for j in range(total_col):
@@ -305,9 +306,9 @@ def save_image_and_label(path, image, label, order, group_size=(128, 128)):
 def main():
     gb_list = get_chinese.get_primary_gb()
     print('Total char:', len(gb_list))
-    gb_char_list = gb_list[:-42]
-    gb_punc_list = gb_list[-42:]
+    gb_char_list = gb_list[:3755]
     gb_alpha_list = gb_list[3755:3755+52+10]
+    gb_punc_list = gb_list[-42:]
 
     font_style_list = ['simhei.ttf', 'simkai.ttf', 'simsun.ttc', 'msyh.ttc', 'STXINWEI.TTF', 'SIMLI.TTF', 'FZSTK.TTF',
                        'Deng.ttf', 'STXINGKA.TTF', 'FZYTK.TTF', 'simfang.ttf', 'SIMYOU.TTF', 'STSONG.TTF']
@@ -347,6 +348,8 @@ def main():
     np.random.shuffle(all_char_list)
     test_data_ratio = 0.05
     test_data_length = int(len(all_char_list)*test_data_ratio)
+    print('Train data length:', len(all_char_list) - test_data_length)
+    print('Test data length:', test_data_length)
 
     path_train = 'data_train/'
     path_test = 'data_test/'
@@ -356,6 +359,8 @@ def main():
     print('Total Length:', len(all_char_list))
     print('Train data length:', len(all_char_list) - test_data_length)
     print('Test data length:', test_data_length)
+    with open('train_test_length.txt', 'wt') as file:
+        file.write('Train data length: {}\nTest data length: {}\n'.format(len(all_char_list)-test_data_length, test_data_length))
 
 
 if __name__ == '__main__':

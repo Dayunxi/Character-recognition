@@ -8,12 +8,9 @@ import cv2 as cv
 import numpy as np
 
 
-FLAGS = None
 WIDTH = 64
 HEIGHT = 64
-CHAR_NUM = 3755
-TOTAL_NUM = int(CHAR_NUM*13*72*2*0.9)
-GROUP_SIZE = (16, 16)
+CHAR_NUM = 3859
 
 label_id = {}
 id_label = {}
@@ -128,34 +125,22 @@ def bias_variable(shape):
 
 
 def predict(images):
-
-    y_ = tf.placeholder(tf.float32, [None, CHAR_NUM])
-    graph = deepnn(3)
-
-    correct_prediction = tf.equal(tf.argmax(graph['y_conv'], 1), tf.argmax(y_, 1))
-    correct_prediction = tf.cast(correct_prediction, tf.float32)
-    accuracy = tf.reduce_mean(correct_prediction)
+    graph = deepnn(top_k=3)
 
     with tf.Session() as sess:
         saver = tf.train.Saver()
-        # ckpt_path = tf.train.latest_checkpoint('model/')
-        # print('ckpt', ckpt_path)
         print('Loading model')
-        ckpt_path = 'model/ocr-model-49427'
+        ckpt_path = 'model/ocr-model-24563'
         saver.restore(sess, ckpt_path)
         print('Load Done')
 
-        # images, _ = images
-
-        # ratio = accuracy.eval(feed_dict={graph['image']: images, y_: labels, graph['keep_prob']: 1.})
-        # print("Ratio:", ratio)
         predict_txt = []
 
         print('Predicting ...')
         for i in range(len(images)):
             print('{}/{}'.format(i, len(images)))
             image = np.reshape(images[i], [-1, 64, 64])
-            # image = images[i]
+
             result = sess.run(graph['top_k'], feed_dict={graph['image']: image, graph['keep_prob']: 1.})
             values, indexes = result
 
@@ -164,8 +149,9 @@ def predict(images):
             for j in range(3):
                 print(id_label[indexes[0][j]], ':', values[0][j])
 
-            cv.imshow('test', np.array(images[i]*255, dtype=np.uint8))
-            cv.waitKey()
+            # cv.imshow('test', np.array(images[i]*255, dtype=np.uint8))
+            # cv.waitKey()
+        print('文本识别结果：')
         print(''.join(predict_txt))
 
 
@@ -176,7 +162,7 @@ def main():
         label_id[char] = gb_id
         id_label[gb_id] = char
 
-    batch = preprocess.get_predict_image("input_image/test0.jpg")
+    batch = preprocess.get_predict_image("input_image/test27.jpg", alpha=True)
     predict(batch)
 
 

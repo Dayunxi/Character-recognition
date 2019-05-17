@@ -27,7 +27,7 @@ def binary_image_ada(image):
     white_cnt, black_cnt = binary_stat(ret)
     origin = image
     if white_cnt > black_cnt:
-        print(white_cnt, black_cnt)
+        # print(white_cnt, black_cnt)
         ret = cv.bitwise_not(ret)
         origin = cv.bitwise_not(image)
     return ret, origin
@@ -38,7 +38,7 @@ def binary_image_otsu(image):
     white_cnt, black_cnt = binary_stat(ret)
     origin = image
     if white_cnt > black_cnt:
-        print(white_cnt, black_cnt)
+        # print(white_cnt, black_cnt)
         ret = cv.bitwise_not(ret)
         origin = cv.bitwise_not(image)
     return ret, origin

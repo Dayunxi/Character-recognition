@@ -1,4 +1,5 @@
 import tensorflow as tf
+import sys
 
 import load_train_data
 import get_chinese
@@ -6,6 +7,7 @@ import preprocess
 
 import cv2 as cv
 import numpy as np
+import getopt
 
 
 WIDTH = 64
@@ -124,12 +126,12 @@ def bias_variable(shape):
     return tf.Variable(initial)
 
 
-def predict(images):
+def predict(images, display=False):
     graph = deepnn(top_k=3)
 
     with tf.Session() as sess:
         saver = tf.train.Saver()
-        print('Loading model')
+        print('Loading model ...')
         ckpt_path = 'model/ocr-model-24563'
         saver.restore(sess, ckpt_path)
         print('Load Done')
@@ -138,7 +140,7 @@ def predict(images):
 
         print('Predicting ...')
         for i in range(len(images)):
-            print('{}/{}'.format(i, len(images)))
+            print('\n{}/{}'.format(i, len(images)))
             image = np.reshape(images[i], [-1, 64, 64])
 
             result = sess.run(graph['top_k'], feed_dict={graph['image']: image, graph['keep_prob']: 1.})
@@ -149,22 +151,50 @@ def predict(images):
             for j in range(3):
                 print(id_label[indexes[0][j]], ':', values[0][j])
 
-            # cv.imshow('test', np.array(images[i]*255, dtype=np.uint8))
-            # cv.waitKey()
-        print('文本识别结果：')
+            if display:
+                cv.imshow('test', np.array(images[i]*255, dtype=np.uint8))
+                cv.waitKey()
+        print('\n文本识别结果：')
         print(''.join(predict_txt))
 
 
-def main():
+def main(argv):
+    image_path = "input_image/test27.jpg"
+    display = True
+    alpha = False
+    noise = False
+    try:
+        opts, args = getopt.getopt(argv, 'i:hdcen', ['image=', 'help', 'display', 'chinese', 'english', 'noise'])
+    except getopt.GetoptError:
+        print('ocr_predict.py -i <image_path>')
+        sys.exit()
+    for opt, arg in opts:
+        if opt in ('-i', '--image'):
+            image_path = arg
+        if opt in ('-d', '--display'):
+            display = False
+        if opt in ('-e', '--english'):
+            alpha = True
+        if opt in ('-n', '--noise'):
+            noise = True
+        if opt in ('-h', '--help'):
+            print('ocr_predict.py -i <image_path>\n'
+                  '\t-i, --image\tinput image\'s path\n'
+                  '\t-e, --english\t English recognition\n'
+                  '\t-d, --display\tshow each character\'s image while predicting')
+    # for arg in args:
+    #     print(arg)
+
     gb_list = get_chinese.get_primary_gb()
     global label_id, id_label
     for char, gb_id in gb_list:
         label_id[char] = gb_id
         id_label[gb_id] = char
 
-    batch = preprocess.get_predict_image("input_image/test27.jpg", alpha=True)
-    predict(batch)
+    batch = preprocess.get_predict_image(image_path, alpha=alpha, noise=noise)
+    predict(batch, display)
 
 
 if __name__ == '__main__':
-    main()
+    # print(sys.argv)
+    main(sys.argv[1:])

@@ -50,6 +50,7 @@ def hough_transform(image):
     dil_image = filter.add_dilate(image)  # 膨胀
     edges = cv.Canny(dil_image, 50, 150)  # 提取边缘
     # cv.imshow('edges', edges)
+    # cv.waitKey()
 
     lines = cv.HoughLines(edges, 1, np.pi / 720, 100)
     all_valid_angles = []
@@ -142,7 +143,7 @@ def get_horizon_split(image):
         if not is_begin and stat[i] >= min_pixel:
             start = i
             is_begin = True
-        elif is_begin and stat[i] < min_pixel:
+        elif is_begin and (stat[i] < min_pixel or i == rows-1):  # 最后一行也有像素
             if i - start >= min_height:
                 row_range_list.append((start, i))
             is_begin = False
@@ -192,11 +193,12 @@ def char_resize(image, size=(64, 64)):
     return canvas
 
 
-def get_predict_image(path, size=(64, 64), alpha=False):
+def get_predict_image(path, size=(64, 64), alpha=False, noise=False):
         image = read_image(path)
         bin_image, origin = filter.binary_image_otsu(image)
         # cv.imshow('before filter', bin_image)
-        # bin_image = filter.mean_filter(bin_image)
+        if noise:
+            bin_image = filter.mean_filter(bin_image)
         # cv.imshow('filter', bin_image)
         bin_image, inclined_angle = hough_transform(bin_image)   # 旋转后不是二值图
         bin_image, _ = filter.binary_image_otsu(bin_image)
@@ -217,7 +219,10 @@ def get_predict_image(path, size=(64, 64), alpha=False):
                 image_box_list.append((left, upper, right, bottom))
 
         for left, upper, right, bottom in image_box_list:
-            valid_images.append(origin[upper:bottom, left:right])
+            if not noise:
+                valid_images.append(origin[upper:bottom, left:right])
+            else:
+                valid_images.append(bin_image[upper:bottom, left:right])
 
         regularized_image = []
         for image in valid_images:
